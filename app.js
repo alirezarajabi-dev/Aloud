@@ -74,6 +74,8 @@
     markFill: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
     book: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 7h6"/></svg>',
     cal: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+    camera: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    spark: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>',
     pen: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
     stop: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
     close: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
@@ -134,8 +136,41 @@
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   const nowIso = () => new Date().toISOString();
 
+  async function loadCoverPhoto() {
+    if (S.coverUrl) { URL.revokeObjectURL(S.coverUrl); S.coverUrl = null; }
+    const rec = await DB.get('kv', 'coverPhoto');
+    if (rec && rec.blob) S.coverUrl = URL.createObjectURL(rec.blob);
+  }
+
+  // Square-crops and shrinks a chosen picture so it stays small on the phone.
+  async function makeCoverPhoto(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = url; });
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      const out = 640;
+      const c = document.createElement('canvas');
+      c.width = out; c.height = out;
+      c.getContext('2d').drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, out, out);
+      return await new Promise((resolve) => c.toBlob(resolve, 'image/jpeg', 0.86));
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  async function setCoverPhoto(file) {
+    try {
+      const blob = await makeCoverPhoto(file);
+      if (!blob) throw new Error('no_blob');
+      await DB.put('kv', { blob }, 'coverPhoto');
+      await loadCoverPhoto();
+      toast(t('photoSaved'));
+      if (sheet()) openSettings();
+      render();
+    } catch (e) { console.error(e); toast(t('photoFailed')); }
+  }
+
   async function loadState() {
     S.settings = (await DB.get('kv', 'settings')) || {};
+    await safe(loadCoverPhoto());
     S.chapters = (await DB.all('chapters')).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     S.entries = (await DB.all('entries')).sort((a, b) => a.startedAt.localeCompare(b.startedAt));
   }
@@ -282,7 +317,7 @@
       : t('noPagesYet');
     const inner = spineHtml() + '<div class="frame" aria-hidden="true"></div>' + cornersHtml() +
       '<span class="vol">' + esc(t('notebookOne')) + '</span>' +
-      '<span class="title"><img class="orn-med" src="orn/medallion.svg" alt="" aria-hidden="true">' +
+      '<span class="title">' + (S.coverUrl ? '<span class="cover-photo"><img src="' + S.coverUrl + '" alt=""></span>' : '<img class="orn-med" src="orn/medallion.svg" alt="" aria-hidden="true">') +
       '<span class="t1">' + esc(t('journalOf')) + '</span><span class="t2" data-cover-name>' + esc(name) + '</span></span>' +
       '<span class="meta">' + esc(meta) + '</span>';
     if (small) return '<div class="cover small" aria-hidden="true">' + inner + '</div>';
@@ -361,50 +396,81 @@
 
 
   // ----- opening animation: the journal opens and writes an invitation to speak
-  function playIntro() {
-    if (S.introPlayed) return;
-    S.introPlayed = true;
-    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'intro';
-    wrap.setAttribute('aria-hidden', 'true');
+  // Reads the line aloud with the phone's own voice, if it has one for this language.
+  function speak(text) {
+    try {
+      if (!('speechSynthesis' in window)) return;
+      const want = lang() === 'fa' ? 'fa' : 'en';
+      const voices = window.speechSynthesis.getVoices();
+      const voice = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith(want));
+      if (!voice && want === 'fa') return; // no Persian voice on this phone: show only
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = want === 'fa' ? 'fa-IR' : 'en-US';
+      if (voice) u.voice = voice;
+      u.rate = 0.92;
+      u.pitch = 1.02;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    } catch (e) { /* speech not available */ }
+  }
+
+  function todayHope() {
     const hopes = (window.HOPE && window.HOPE[lang()]) || [];
-    if (S.hopeIndex === undefined && hopes.length) {
+    if (!hopes.length) return '';
+    if (S.hopeIndex === undefined) {
       const now = new Date();
       S.hopeIndex = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000) % hopes.length;
     }
-    const quote = hopes.length ? hopes[S.hopeIndex % hopes.length] : '';
+    return hopes[S.hopeIndex % hopes.length];
+  }
+
+  // ----- opening: the journal opens; tap to reveal today's line
+  function playIntro() {
+    if (S.introPlayed) return;
+    S.introPlayed = true;
+    const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const quote = todayHope();
+    const wrap = document.createElement('div');
+    wrap.className = 'intro' + (calm ? ' calm open' : '');
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-label', t('todaysLine'));
+    let sparks = '';
+    for (let i = 0; i < 16; i++) sparks += '<span class="spark" aria-hidden="true">' + I.spark + '</span>';
+    const words = quote.split(' ').map((w, i) => '<span class="w" data-i="' + i + '">' + esc(w) + '</span>').join(' ');
     wrap.innerHTML = '<div class="intro-book"><div class="intro-page">' + cornersHtml() +
       '<img class="orn-head" src="orn/headpiece.svg" alt="" aria-hidden="true"><span class="eyebrow">' + esc(fmtCal(new Date(), defaultCal(), { weekday: 'long', day: 'numeric', month: 'long' })) + '</span>' +
-      '<div class="intro-write" dir="auto"></div>' +
-      '<div class="intro-quote" dir="auto"><span class="q-mark" aria-hidden="true">“</span>' + esc(quote) + '</div></div>' +
-      '<div class="intro-cover">' + coverHtml(true) + '</div></div><span class="intro-skip">' + esc(t('tapToSkip')) + '</span>';
+      '<button class="reveal-btn" data-reveal>' + I.spark + '<span>' + esc(t('revealLine')) + '</span></button>' +
+      '<div class="intro-quote" dir="auto">' + sparks + '<span class="q-mark" aria-hidden="true">“</span><span class="q-text">' + words + '</span></div>' +
+      '<button class="btn btn-primary intro-go" data-go>' + esc(t('startJournal')) + '</button></div>' +
+      '<div class="intro-cover">' + coverHtml(true) + '</div></div>' +
+      '<button class="intro-skip" data-go>' + esc(t('skip')) + '</button>';
     document.body.appendChild(wrap);
-    const target = wrap.querySelector('.intro-write');
-    const words = t('introLine').split(' ');
-    let i = 0;
-    let typer = null;
     const timers = [];
     const finish = () => {
-      timers.forEach(clearTimeout); clearInterval(typer);
+      timers.forEach(clearTimeout);
+      try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
       wrap.classList.add('out');
       setTimeout(() => wrap.remove(), 650);
     };
-    wrap.addEventListener('click', finish);
-    timers.push(setTimeout(() => wrap.classList.add('open'), 750));
-    timers.push(setTimeout(() => {
-      // Word by word, so Persian letters stay joined while they appear.
-      typer = setInterval(() => {
-        i++;
-        target.textContent = words.slice(0, i).join(' ');
-        if (i >= words.length) {
-          clearInterval(typer);
-          // Then the day's line jumps out of the page.
-          timers.push(setTimeout(() => wrap.classList.add('quote-in'), 350));
-          timers.push(setTimeout(finish, 3600));
-        }
-      }, 190);
-    }, 1700));
+    // Place the sparkles at random around the line.
+    wrap.querySelectorAll('.spark').forEach((sp) => {
+      sp.style.left = (5 + Math.random() * 90) + '%';
+      sp.style.top = (-15 + Math.random() * 130) + '%';
+      sp.style.animationDelay = (Math.random() * 1.6).toFixed(2) + 's';
+      sp.style.setProperty('--s', (0.5 + Math.random() * 0.9).toFixed(2));
+    });
+    const reveal = () => {
+      if (wrap.classList.contains('revealed')) return;
+      wrap.classList.add('revealed');
+      wrap.querySelectorAll('.q-text .w').forEach((w, i) => { w.style.animationDelay = (0.35 + i * 0.16).toFixed(2) + 's'; });
+      speak(quote);
+      const n = quote.split(' ').length;
+      timers.push(setTimeout(() => wrap.classList.add('settled'), 600 + n * 160 + 900));
+    };
+    wrap.querySelector('[data-reveal]').addEventListener('click', (e) => { e.stopPropagation(); reveal(); });
+    wrap.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); finish(); }));
+    if (!calm) timers.push(setTimeout(() => wrap.classList.add('open'), 750));
+    timers.push(setTimeout(() => wrap.classList.add('ready'), calm ? 0 : 1900));
   }
 
   // ----- calendar helpers (Persian/Solar Hijri and Gregorian, via the browser's own calendars)
@@ -441,14 +507,10 @@
   }
 
   function hopeLine() {
-    const list = (window.HOPE && window.HOPE[lang()]) || [];
-    if (!list.length) return '';
-    if (S.hopeIndex === undefined) {
-      const now = new Date();
-      S.hopeIndex = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000) % list.length;
-    }
+    const line = todayHope();
+    if (!line) return '';
     return '<button class="hope" data-act="next-hope" aria-label="' + esc(t('anotherLine')) + '">' +
-      '<span class="hope-mark" aria-hidden="true">“</span><span data-hope>' + esc(list[S.hopeIndex % list.length]) + '</span></button>';
+      '<span class="hope-mark" aria-hidden="true">“</span><span data-hope>' + esc(line) + '</span></button>';
   }
 
   // Personal AR logo in a navy-and-gold ring. Uses icons/ar-logo.png when present.
@@ -475,6 +537,8 @@
       hopeLine() +
       backupBanner() +
       '<div class="cover-wrap">' + coverHtml(false) + '</div>' +
+      '<div class="cover-tools"><label class="chip" for="coverfile-home">' + I.camera + esc(S.coverUrl ? t('changePhoto') : t('addCoverPhoto')) + '</label>' +
+      '<input id="coverfile-home" class="sr-only" type="file" accept="image/*" data-cover-photo></div>' +
       (ch ? '<div class="card card-row"><button class="linklike grow" data-act="contents"><span class="label">' + esc(t('currentChapter')) + '</span>' +
         '<span class="card-row"><span class="value grow" dir="auto">' + esc(chTitle(ch)) + '</span><span class="muted small">' +
         esc(pagesText(entriesOf(ch.id).length)) + '</span></span></button>' +
@@ -1062,6 +1126,11 @@
       '<div class="field"><label for="setnameen">' + esc(t('nameEnLabel')) + '</label>' +
       '<input id="setnameen" type="text" maxlength="60" dir="ltr" autocomplete="off" placeholder="Alireza" value="' + esc(S.settings.nameEn || '') + '">' +
       '<span class="muted tiny">' + esc(t('nameEnHint')) + '</span></div>' +
+      '<div class="field"><span class="label">' + esc(t('coverPhoto')) + '</span><div class="photo-row">' +
+      '<span class="cover-photo preview">' + (S.coverUrl ? '<img src="' + S.coverUrl + '" alt="">' : '<img class="orn-med" src="orn/medallion.svg" alt="">') + '</span>' +
+      '<div class="photo-btns"><label class="btn btn-primary" for="coverfile">' + I.camera + esc(S.coverUrl ? t('changePhoto') : t('choosePhoto')) + '</label>' +
+      (S.coverUrl ? '<button class="btn btn-ghost" data-act="remove-photo">' + esc(t('removePhoto')) + '</button>' : '') + '</div></div>' +
+      '<input id="coverfile" class="sr-only" type="file" accept="image/*" data-cover-photo></div>' +
       '<div class="field"><span class="label">' + esc(t('language')) + '</span><div class="seg">' +
       '<button data-act="set-lang" data-lang="fa" aria-pressed="' + (lang() === 'fa') + '">فارسی</button>' +
       '<button data-act="set-lang" data-lang="en" aria-pressed="' + (lang() === 'en') + '">English</button></div></div>' +
@@ -1115,6 +1184,8 @@
       files.push({ name, data: new Uint8Array(await rec.blob.arrayBuffer()), date: new Date(e.startedAt) });
       manifest.entries.push(Object.assign({}, e, { file: name }));
     }
+    const photo = await DB.get('kv', 'coverPhoto');
+    if (photo && photo.blob) { files.push({ name: 'cover.jpg', data: new Uint8Array(await photo.blob.arrayBuffer()) }); manifest.coverPhoto = 'cover.jpg'; }
     files.unshift({ name: 'journal.json', data: new TextEncoder().encode(JSON.stringify(manifest, null, 1)) });
     const blob = new Blob(window.RZip.zipParts(files), { type: 'application/zip' });
     const fname = 'aloud-backup-' + nowIso().slice(0, 10) + '.zip';
@@ -1145,6 +1216,10 @@
       const byName = new Map(items.map((i) => [i.name, i.data]));
       const manifest = JSON.parse(new TextDecoder().decode(byName.get('journal.json')));
       if (!manifest || manifest.app !== 'aloud') throw new Error('not_aloud');
+      if (manifest.coverPhoto && byName.get(manifest.coverPhoto) && !S.coverUrl) {
+        await DB.put('kv', { blob: new Blob([byName.get(manifest.coverPhoto)], { type: 'image/jpeg' }) }, 'coverPhoto');
+        await loadCoverPhoto();
+      }
       for (const ch of manifest.chapters || []) {
         if (!S.chapters.some((c) => c.id === ch.id)) { await DB.put('chapters', ch); S.chapters.push(ch); }
       }
@@ -1352,6 +1427,11 @@
     'new-chapter': () => openChapterName(null),
     'toggle-play': () => { if (audio.paused) safe(audio.play()); else audio.pause(); },
     'stop-audio': () => stopAudio(),
+    'remove-photo': async () => {
+      await safe(DB.del('kv', 'coverPhoto'));
+      await safe(loadCoverPhoto());
+      openSettings(); render();
+    },
     'delete-chapter': async (el) => {
       if (entriesOf(el.dataset.id).length) return;
       await safe(DB.del('chapters', el.dataset.id));
@@ -1405,6 +1485,7 @@
   document.addEventListener('change', (ev) => {
     if (ev.target.matches('[data-import]') && ev.target.files && ev.target.files.length) runImport(ev.target.files);
     if (ev.target.matches('[data-restore]') && ev.target.files && ev.target.files[0]) restoreBackup(ev.target.files[0]);
+    if (ev.target.matches('[data-cover-photo]') && ev.target.files && ev.target.files[0]) setCoverPhoto(ev.target.files[0]);
   });
 
   document.addEventListener('submit', async (ev) => {
