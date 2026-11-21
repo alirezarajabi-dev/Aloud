@@ -72,6 +72,8 @@
     pause: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
     mark: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
     markFill: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
+    book: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 7h6"/></svg>',
+    cal: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
     rew: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
     fwd: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>'
   };
@@ -233,7 +235,7 @@
     const theme = pref === 'auto' ? (h >= 7 && h < 19 ? 'light' : 'dark') : pref;
     document.documentElement.dataset.theme = theme;
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = theme === 'light' ? '#F5EFE4' : '#12151C';
+    if (meta) meta.content = theme === 'light' ? '#F7F4EE' : '#142C2B';
   }
 
   // The current chapter is the one holding the latest recording, unless a newer, still-empty
@@ -290,6 +292,13 @@
     else if (v === 'recorder') { app.innerHTML = viewRecorder(); Rec.bindView(); }
     const focus = app.querySelector('[autofocus]');
     if (focus) focus.focus();
+    clearInterval(S.clockTimer);
+    if (v === 'home') {
+      S.clockTimer = setInterval(() => {
+        const el = app.querySelector('[data-clock]');
+        if (el) el.textContent = fmtCal(new Date(), defaultCal(), { hour: '2-digit', minute: '2-digit', hour12: false });
+      }, 15000);
+    }
   }
 
   function viewWelcome() {
@@ -335,23 +344,160 @@
       '<button class="chip" data-act="backup">' + esc(t('backupNow')) + '</button></div>';
   }
 
+
+  // ----- opening animation: the journal opens and writes an invitation to speak
+  function playIntro() {
+    if (S.introPlayed) return;
+    S.introPlayed = true;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'intro';
+    wrap.setAttribute('aria-hidden', 'true');
+    wrap.innerHTML = '<div class="intro-book"><div class="intro-page"><span class="eyebrow">' + esc(fmtCal(new Date(), defaultCal(), { weekday: 'long', day: 'numeric', month: 'long' })) + '</span>' +
+      '<div class="intro-write" dir="auto"></div></div>' +
+      '<div class="intro-cover">' + coverHtml(true) + '</div></div><span class="intro-skip">' + esc(t('tapToSkip')) + '</span>';
+    document.body.appendChild(wrap);
+    const target = wrap.querySelector('.intro-write');
+    const text = t('introLine');
+    const words = text.split(' ');
+    let i = 0;
+    let typer = null;
+    const timers = [];
+    const finish = () => {
+      timers.forEach(clearTimeout); clearInterval(typer);
+      wrap.classList.add('out');
+      setTimeout(() => wrap.remove(), 650);
+    };
+    wrap.addEventListener('click', finish);
+    timers.push(setTimeout(() => wrap.classList.add('open'), 750));
+    timers.push(setTimeout(() => {
+      // Word by word, so Persian letters stay joined while they appear.
+      typer = setInterval(() => {
+        i++;
+        target.textContent = words.slice(0, i).join(' ');
+        if (i >= words.length) { clearInterval(typer); timers.push(setTimeout(finish, 1300)); }
+      }, 170);
+    }, 1700));
+  }
+
+  // ----- calendar helpers (Persian/Solar Hijri and Gregorian, via the browser's own calendars)
+  const CAL_LOCALE = { persian: 'en-US-u-ca-persian-nu-latn', gregory: 'en-US-u-ca-gregory-nu-latn' };
+  function calParts(date, cal) {
+    const parts = new Intl.DateTimeFormat(CAL_LOCALE[cal], { year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(date);
+    const get = (k) => Number((parts.find((p) => p.type === k) || {}).value);
+    return { y: get('year'), m: get('month'), d: get('day') };
+  }
+  const dayKey = (date) => date.getFullYear() + '-' + date.getMonth() + '-' + date.getDate();
+  const addDays = (date, n) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + n, 12);
+  function monthStart(date, cal) { let x = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12); while (calParts(x, cal).d !== 1) x = addDays(x, -1); return x; }
+  function monthDays(start, cal) { const m = calParts(start, cal).m; const out = []; let x = start; while (calParts(x, cal).m === m) { out.push(x); x = addDays(x, 1); } return out; }
+  function fmtCal(date, cal, opts) {
+    const loc = (lang() === 'fa' ? 'fa-IR' : 'en-US') + '-u-ca-' + cal;
+    const out = new Intl.DateTimeFormat(loc, opts).format(date);
+    return lang() === 'fa' ? out.replace(/,/g, '،') : out;
+  }
+  const otherCal = (cal) => (cal === 'persian' ? 'gregory' : 'persian');
+  const defaultCal = () => (lang() === 'fa' ? 'persian' : 'gregory');
+
+  function todayCard() {
+    const now = new Date();
+    const main = defaultCal();
+    const second = otherCal(main);
+    const time = fmtCal(now, main, { hour: '2-digit', minute: '2-digit', hour12: false });
+    return '<button class="today" data-act="calendar" aria-label="' + esc(t('calendar')) + '">' +
+      '<span class="today-text">' +
+      '<span class="eyebrow">' + esc(fmtCal(now, main, { weekday: 'long' })) + '</span>' +
+      '<span class="today-main">' + esc(fmtCal(now, main, { day: 'numeric', month: 'long', year: 'numeric' })) + '</span>' +
+      '<span class="today-second">' + esc(fmtCal(now, second, { day: 'numeric', month: 'long', year: 'numeric' })) + '</span>' +
+      '</span>' +
+      '<span class="today-time" data-clock>' + esc(time) + '</span></button>';
+  }
+
+  function hopeLine() {
+    const list = (window.HOPE && window.HOPE[lang()]) || [];
+    if (!list.length) return '';
+    if (S.hopeIndex === undefined) {
+      const now = new Date();
+      S.hopeIndex = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000) % list.length;
+    }
+    return '<button class="hope" data-act="next-hope" aria-label="' + esc(t('anotherLine')) + '">' +
+      '<span class="hope-mark" aria-hidden="true">“</span><span data-hope>' + esc(list[S.hopeIndex % list.length]) + '</span></button>';
+  }
+
+  function dock(active) {
+    return '<nav class="dock" aria-label="' + esc(t('appName')) + '">' +
+      '<button class="dock-item' + (active === 'contents' ? ' on' : '') + '" data-act="contents">' + I.book + '<span>' + esc(t('contents')) + '</span></button>' +
+      '<button class="dock-rec" data-act="record" aria-label="' + esc(t('newPage')) + '"><span class="dock-rec-btn">' + I.mic + '</span><span>' + esc(t('recordShort')) + '</span></button>' +
+      '<button class="dock-item' + (active === 'calendar' ? ' on' : '') + '" data-act="calendar">' + I.cal + '<span>' + esc(t('calendar')) + '</span></button>' +
+      '</nav>';
+  }
+
   function viewHome() {
     const ch = currentChapter();
     const memory = onThisDay();
-    return '<section class="screen">' +
-      '<div class="topbar"><span class="muted small">' + esc(fmtLong(new Date().toISOString())) + '</span>' +
+    return '<section class="screen with-dock">' +
+      '<div class="topbar"><div class="brand"><span class="word"><i>A</i>loud</span></div>' +
       '<div class="card-row">' + langPill() +
       '<button class="iconbtn" data-act="settings" aria-label="' + esc(t('settings')) + '">' + I.gear + '</button></div></div>' +
-      '<div class="cover-wrap">' + coverHtml(false) + '</div>' +
+      todayCard() +
+      hopeLine() +
       backupBanner() +
+      '<div class="cover-wrap">' + coverHtml(false) + '</div>' +
       (ch ? '<div class="card"><button class="linklike" data-act="contents"><span class="label">' + esc(t('currentChapter')) + '</span>' +
         '<span class="card-row"><span class="value grow">' + esc(ch.title) + '</span><span class="muted small">' +
         esc(pagesText(entriesOf(ch.id).length)) + '</span></span></button></div>' : '') +
       (memory ? '<div class="card card-row"><button class="iconbtn" data-act="play" data-id="' + esc(memory.e.id) + '" aria-label="' + esc(entryTitle(memory.e)) + '">' + I.play + '</button>' +
         '<span><span class="label">' + esc(t('onThisDay', { when: memory.when })) + '</span><br><span>' + esc(entryTitle(memory.e)) + '</span></span></div>' : '') +
-      '<div class="grow"></div>' +
-      '<button class="btn btn-primary btn-big" data-act="record">' + I.mic + esc(t('newPage')) + '</button>' +
-      '</section>';
+      '</section>' + dock('home');
+  }
+
+  // ----- calendar sheet
+  function openCalendar(keepState) {
+    if (!keepState) { S.calMode = S.calMode || defaultCal(); S.calAnchor = new Date(); S.calSelected = dayKey(new Date()); }
+    const cal = S.calMode;
+    const start = monthStart(S.calAnchor, cal);
+    const days = monthDays(start, cal);
+    const weekStart = cal === 'persian' ? 6 : 0; // Saturday for the Persian calendar, Sunday otherwise
+    const lead = (start.getDay() - weekStart + 7) % 7;
+    const byDay = new Map();
+    S.entries.forEach((e) => { const k = dayKey(new Date(e.startedAt)); byDay.set(k, (byDay.get(k) || []).concat(e)); });
+    const todayK = dayKey(new Date());
+    const wk = [];
+    for (let i = 0; i < 7; i++) wk.push(fmtCal(addDays(new Date(2026, 0, 4 + weekStart), i), cal, { weekday: 'narrow' }));
+    let cells = '';
+    for (let i = 0; i < lead; i++) cells += '<span class="cal-cell empty"></span>';
+    days.forEach((d) => {
+      const k = dayKey(d);
+      const has = byDay.has(k);
+      const sec = calParts(d, otherCal(cal)).d;
+      cells += '<button class="cal-cell' + (k === todayK ? ' today-cell' : '') + (k === S.calSelected ? ' sel' : '') + '" data-act="cal-day" data-key="' + k + '" aria-label="' + esc(fmtCal(d, cal, { day: 'numeric', month: 'long' })) + '">' +
+        '<span class="n">' + esc(fmtCal(d, cal, { day: 'numeric' })) + '</span>' +
+        '<span class="n2">' + esc(lang() === 'fa' ? num(sec) : String(sec)) + '</span>' +
+        (has ? '<span class="dot" aria-hidden="true"></span>' : '') + '</button>';
+    });
+    const sel = byDay.get(S.calSelected) || [];
+    const list = sel.length ? sel.map((e) => '<button class="page-row" data-act="play" data-id="' + esc(e.id) + '">' +
+      '<span class="bar ' + moodClass(e.mood) + '"></span><span class="txt"><span dir="auto" class="t' + (e.title ? '' : ' untitled') + '">' + esc(entryTitle(e)) + '</span>' +
+      '<span class="d">' + esc(fmtDate(e.startedAt, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span></span><span class="len">' + esc(fmtLen(e.durationSec)) + '</span></button>').join('')
+      : '<div class="empty small">' + esc(t('noPagesThisDay')) + '</div>';
+    openSheet(
+      '<div class="cal-head"><button class="iconbtn flip-rtl" data-act="cal-prev" aria-label="' + esc(t('prevMonth')) + '">' + I.back + '</button>' +
+      '<div class="cal-title"><span class="cal-month">' + esc(fmtCal(start, cal, { month: 'long', year: 'numeric' })) + '</span>' +
+      '<span class="cal-month2">' + esc(fmtCal(start, otherCal(cal), { month: 'long' }) + ' – ' + fmtCal(days[days.length - 1], otherCal(cal), { month: 'long', year: 'numeric' })) + '</span></div>' +
+      '<button class="iconbtn flip-ltr" data-act="cal-next" aria-label="' + esc(t('nextMonth')) + '">' + I.back + '</button></div>' +
+      '<div class="seg"><button data-act="cal-mode" data-mode="persian" aria-pressed="' + (cal === 'persian') + '">' + esc(t('solar')) + '</button>' +
+      '<button data-act="cal-mode" data-mode="gregory" aria-pressed="' + (cal === 'gregory') + '">' + esc(t('gregorian')) + '</button></div>' +
+      '<div class="cal-grid" role="grid">' + wk.map((w) => '<span class="cal-wd">' + esc(w) + '</span>').join('') + cells + '</div>' +
+      '<div>' + list + '</div>' +
+      '<button class="btn btn-ghost" data-act="close-sheet">' + esc(t('close')) + '</button>'
+    );
+  }
+
+  function moveMonth(dir) {
+    const cal = S.calMode;
+    const start = monthStart(S.calAnchor, cal);
+    S.calAnchor = dir < 0 ? addDays(start, -1) : addDays(monthDays(start, cal).slice(-1)[0], 1);
+    openCalendar(true);
   }
 
   function viewContents() {
@@ -367,7 +513,7 @@
           '<button class="chip" data-act="rename-chapter" data-id="' + esc(ch.id) + '">' + esc(t('renameChapter')) + '</button></div>' +
           (list.length ? list.map((e) => '<button class="page-row' + (S.playingId === e.id ? ' playing' : '') + '" data-act="play" data-id="' + esc(e.id) + '">' +
             '<span class="bar ' + moodClass(e.mood) + '"></span>' +
-            '<span class="txt"><span class="t' + (e.title ? '' : ' untitled') + '">' + esc(e.title || t('untitled') + ' — ' + t('addTitle')) + '</span>' +
+            '<span class="txt"><span dir="auto" class="t' + (e.title ? '' : ' untitled') + '">' + esc(e.title || t('untitled') + ' — ' + t('addTitle')) + '</span>' +
             '<span class="d">' + esc(fmtDayTime(e.startedAt)) + '</span></span>' +
             '<span class="len">' + esc(fmtLen(e.durationSec)) + '</span></button>').join('')
             : '<div class="empty">' + esc(t('noPagesYet')) + '</div>') +
@@ -379,13 +525,13 @@
         '<span class="moodbar" aria-hidden="true">' + list.slice(-12).map((e) => '<span class="' + moodClass(e.mood) + '"></span>').join('') + '</span>' +
         '</button>' + body + '</div>';
     }).join('');
-    return '<section class="screen">' +
+    return '<section class="screen with-dock">' +
       '<div class="topbar"><button class="iconbtn flip-rtl" data-act="home" aria-label="' + esc(t('back')) + '">' + I.back + '</button>' +
       '<h1>' + esc(t('contents')) + '</h1>' +
       '<button class="chip" data-act="new-chapter">' + esc(t('newChapter')) + '</button></div>' +
       backupBanner() +
       (chapters || '<div class="empty">' + esc(t('noPagesYet')) + '</div>') +
-      '</section>';
+      '</section>' + dock('contents');
   }
 
   function viewRecorder() {
@@ -491,7 +637,7 @@
       if (!canvas) return;
       const g = canvas.getContext('2d');
       const css = getComputedStyle(document.documentElement);
-      const on = css.getPropertyValue('--accent').trim() || '#E8B04B';
+      const on = css.getPropertyValue('--copper').trim() || '#DDA77D';
       const off = css.getPropertyValue('--line-strong').trim() || '#3A4156';
       const buf = this.analyser ? new Uint8Array(this.analyser.fftSize) : null;
       const loop = (ts) => {
@@ -711,7 +857,7 @@
     const ch = S.chapters.find((c) => c.id === entry.chapterId);
     openSheet(
       '<div><span class="muted small">' + esc(ch ? ch.title : '') + '</span>' +
-      '<h2 class="player-title">' + esc(entryTitle(entry)) + '</h2>' +
+      '<h2 class="player-title" dir="auto">' + esc(entryTitle(entry)) + '</h2>' +
       '<span class="muted small">' + esc(fmtLong(entry.startedAt) + SEP() + fmtDate(entry.startedAt, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span></div>' +
       '<div><input class="seek" type="range" min="0" max="1000" value="0" step="1" data-seek aria-label="seek">' +
       '<div class="times"><span data-cur>' + fmtClock(0) + '</span><span data-dur>' + fmtClock(entry.durationSec) + '</span></div></div>' +
@@ -1016,6 +1162,18 @@
     'contents': () => { S.view = 'contents'; render(); window.scrollTo(0, 0); },
     'home': () => { S.view = 'home'; render(); window.scrollTo(0, 0); },
     'settings': openSettings,
+    'calendar': () => openCalendar(false),
+    'cal-prev': () => moveMonth(-1),
+    'cal-next': () => moveMonth(1),
+    'cal-mode': (el) => { S.calMode = el.dataset.mode; openCalendar(true); },
+    'cal-day': (el) => { S.calSelected = el.dataset.key; openCalendar(true); },
+    'next-hope': () => {
+      const list = (window.HOPE && window.HOPE[lang()]) || [];
+      if (!list.length) return;
+      S.hopeIndex = (S.hopeIndex + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length;
+      const el = app.querySelector('[data-hope]');
+      if (el) { el.textContent = list[S.hopeIndex]; el.parentElement.classList.remove('swap'); void el.offsetWidth; el.parentElement.classList.add('swap'); }
+    },
     'record': () => Rec.start(),
     'rec-mark': () => Rec.mark(),
     'rec-pause': () => Rec.togglePause(),
@@ -1048,7 +1206,7 @@
       try {
         await putSettings({ name, lang: lang() });
         if (!S.chapters.length) await createChapter(t('defaultChapter'));
-        S.view = 'home'; render();
+        S.view = 'home'; render(); playIntro();
         askPersistence();
       } catch (e) { el.disabled = false; toast(t('saveFailed')); }
     },
@@ -1139,6 +1297,7 @@
     }
     S.view = S.settings.name ? 'home' : 'welcome';
     render();
+    if (S.view === 'home') playIntro();
     await safe(recoverSessions());
     if (S.settings.name) askPersistence();
     if (S.view === 'home' || S.view === 'contents') render();

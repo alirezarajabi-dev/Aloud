@@ -103,6 +103,16 @@ window.I18N = {
     lastBackup: 'آخرین پشتیبان: {d}',
     saveFailed: 'ذخیره نشد. دوباره امتحان کن.',
     noStorage: 'این مرورگر اجازه‌ی ذخیره‌سازی نمی‌دهد. اگر در حالت خصوصی (Private) هستی، از حالت عادی Safari باز کن.',
+    calendar: 'تقویم',
+    recordShort: 'ضبط',
+    anotherLine: 'جمله‌ای دیگر',
+    noPagesThisDay: 'برای این روز صفحه‌ای نیست.',
+    prevMonth: 'ماه قبل',
+    nextMonth: 'ماه بعد',
+    solar: 'شمسی',
+    gregorian: 'میلادی',
+    tapToSkip: 'برای رد شدن لمس کن',
+    introLine: 'امروز را بگو؛ روزت را با صدای خودت بنویس.',
     defaultChapter: 'فصل اول'
   },
   en: {
@@ -207,6 +217,16 @@ window.I18N = {
     lastBackup: 'last backup {d}',
     saveFailed: 'Could not save. Try again.',
     noStorage: 'This browser does not allow storage. If you are in Private mode, open it in normal Safari.',
+    calendar: 'Calendar',
+    recordShort: 'Record',
+    anotherLine: 'Another line',
+    noPagesThisDay: 'No pages on this day.',
+    prevMonth: 'Previous month',
+    nextMonth: 'Next month',
+    solar: 'Solar Hijri',
+    gregorian: 'Gregorian',
+    tapToSkip: 'TAP TO SKIP',
+    introLine: 'Tell me about today. Write your day in your own voice.',
     defaultChapter: 'Chapter One'
   }
 };

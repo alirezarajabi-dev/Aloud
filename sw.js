@@ -1,7 +1,7 @@
 // Keeps the app's own files cached so Aloud opens instantly and works with no connection.
 // Recordings are never here: they live in IndexedDB on the device.
-const CACHE = 'aloud-v1';
-const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'i18n.js', 'zip.js', 'manifest.webmanifest', 'fonts/Afsaneh.ttf', 'icons/icon.svg', 'icons/apple-touch-icon.png'];
+const CACHE = 'aloud-v2';
+const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'i18n.js', 'hope.js', 'zip.js', 'manifest.webmanifest', 'fonts/Afsaneh.ttf', 'icons/icon.svg', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
