@@ -40,7 +40,8 @@
   // A middle dot reads like the Persian zero (۰), so Persian text uses the Persian comma instead.
   const SEP = () => (lang() === 'fa' ? '، ' : ' · ');
   const fmtDayTime = (iso) => fmtDay(iso) + SEP() + fmtDate(iso, { hour: '2-digit', minute: '2-digit', hour12: false });
-  const fmtLong = (iso) => fmtDate(iso, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  // Weekday first in both languages (the Persian locale would put it last).
+  const fmtLong = (iso) => fmtDate(iso, { weekday: 'long' }) + (lang() === 'fa' ? '، ' : ', ') + fmtDate(iso, { day: 'numeric', month: lang() === 'fa' ? 'long' : 'short', year: 'numeric' });
   function fmtClock(sec) {
     sec = Math.max(0, Math.floor(sec || 0));
     const h = Math.floor(sec / 3600);
@@ -76,6 +77,7 @@
     cal: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
     camera: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     spark: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>',
+    down: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
     pen: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
     stop: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
     close: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
@@ -278,7 +280,7 @@
     const theme = pref === 'auto' ? (h >= 7 && h < 19 ? 'light' : 'dark') : pref;
     document.documentElement.dataset.theme = theme;
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = '#0C1B2E'; // matches the navy frame
+    if (meta) meta.content = theme === 'dark' ? '#10201F' : '#F7F4EE';
   }
 
   // The current chapter is the one holding the latest recording, unless a newer, still-empty
@@ -307,7 +309,7 @@
 
   // Persian illumination (tazhib): gilded corner pieces
   function cornersHtml() {
-    return ['tl', 'tr', 'bl', 'br'].map((c) => '<img class="orn-c ' + c + '" src="orn/corner.svg" alt="" aria-hidden="true">').join('');
+    return ''; // the simpler design keeps only the gilded rule on the cover
   }
 
   function coverHtml(small) {
@@ -324,7 +326,7 @@
     const inner = spineHtml() + '<div class="frame" aria-hidden="true"></div>' + cornersHtml() +
       '<span class="vol">' + esc(t('notebookOne')) + '</span>' +
       '<span class="title">' + photoSlot +
-      '<span class="t1">' + esc(t('journalOf')) + '</span><span class="t2" data-cover-name>' + esc(name) + '</span></span>' +
+      '<span class="t1">' + esc(t('journalOf')) + '</span><span class="t2' + (name.length > 7 ? ' long' : '') + '" data-cover-name>' + esc(name) + '</span></span>' +
       '<span class="meta">' + esc(meta) + '</span>';
     if (small) return '<div class="cover small" aria-hidden="true">' + inner + '</div>';
     // A div (not a button) so the photo circle inside it can be its own tap target.
@@ -333,7 +335,7 @@
 
   function langPill() {
     const fa = lang() === 'fa';
-    return '<button class="pill" data-act="toggle-lang" aria-label="' + (fa ? 'Switch to English' : 'تغییر به فارسی') + '">' +
+    return '<button class="pill raised" data-act="toggle-lang" aria-label="' + (fa ? 'Switch to English' : 'تغییر به فارسی') + '">' +
       '<span class="' + (fa ? 'on' : '') + '">فا</span><span class="sep">|</span><span class="' + (fa ? '' : 'on') + '">EN</span></button>';
   }
 
@@ -391,6 +393,12 @@
     return null;
   }
 
+  function needsBackup() {
+    if (!S.entries.length) return false;
+    const last = S.settings.lastBackupAt ? new Date(S.settings.lastBackupAt) : null;
+    return !last || (Date.now() - last) / 86400000 >= 7;
+  }
+
   function backupBanner() {
     if (!S.entries.length) return '';
     const last = S.settings.lastBackupAt ? new Date(S.settings.lastBackupAt) : null;
@@ -435,6 +443,9 @@
   function playIntro() {
     if (S.introPlayed) return;
     S.introPlayed = true;
+    // Once a day is enough; after that the app opens straight to the journal.
+    const today = new Date().toDateString();
+    try { if (localStorage.getItem('aloud-intro') === today) return; localStorage.setItem('aloud-intro', today); } catch (e) { /* private mode */ }
     const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const quote = todayHope();
     const wrap = document.createElement('div');
@@ -520,25 +531,24 @@
   const otherCal = (cal) => (cal === 'persian' ? 'gregory' : 'persian');
   const defaultCal = () => (lang() === 'fa' ? 'persian' : 'gregory');
 
-  function todayCard() {
+  function dateBar() {
     const now = new Date();
     const main = defaultCal();
     const second = otherCal(main);
-    const time = fmtCal(now, main, { hour: '2-digit', minute: '2-digit', hour12: false });
-    return '<button class="today" data-act="calendar" aria-label="' + esc(t('calendar')) + '">' +
-      '<span class="today-text">' +
-      '<span class="eyebrow">' + esc(fmtCal(now, main, { weekday: 'long' })) + '</span>' +
-      '<span class="today-main">' + esc(fmtCal(now, main, { day: 'numeric', month: 'long', year: 'numeric' })) + '</span>' +
-      '<span class="today-second">' + esc(fmtCal(now, second, { day: 'numeric', month: 'long', year: 'numeric' })) + '</span>' +
-      '</span>' +
-      '<span class="today-time" data-clock>' + esc(time) + '</span></button>';
+    return '<button class="datebar raised" data-act="calendar">' +
+      // Weekday first, then the date, built by hand: the Persian locale would put the weekday last.
+      '<span class="db-text"><b>' + esc(fmtCal(now, main, { weekday: lang() === 'fa' ? 'long' : 'short' }) + (lang() === 'fa' ? '، ' : ', ') + fmtCal(now, main, { day: 'numeric', month: lang() === 'fa' ? 'long' : 'short', year: 'numeric' })) + '</b>' +
+      '<small>' + esc(fmtCal(now, second, { day: 'numeric', month: 'long', year: 'numeric' })) + '</small></span>' +
+      '<span class="db-side"><span class="db-time" data-clock>' + esc(fmtCal(now, main, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span>' +
+      '<span class="tag">' + I.cal + esc(t('calendar')) + '</span></span></button>';
   }
 
-  function hopeLine() {
+  function hopeCard() {
     const line = todayHope();
     if (!line) return '';
-    return '<button class="hope" data-act="next-hope" aria-label="' + esc(t('anotherLine')) + '">' +
-      '<span class="hope-mark" aria-hidden="true">“</span><span data-hope>' + esc(line) + '</span></button>';
+    return '<div class="hope-card raised"><span class="hc-label"><i aria-hidden="true"></i>' + esc(t('todaysLine')) + '</span>' +
+      '<span class="hc-text" data-hope dir="auto">' + esc(line) + '</span>' +
+      '<button class="link-btn" data-act="next-hope">' + I.fwd + esc(t('anotherLine')) + '</button></div>';
   }
 
   // Personal AR logo in a navy-and-gold ring. Uses icons/ar-logo.png when present.
@@ -547,32 +557,25 @@
   }
 
   function dock(active) {
-    return '<nav class="dock" aria-label="' + esc(t('appName')) + '">' +
+    return '<nav class="dock raised" aria-label="' + esc(t('appName')) + '">' +
       '<button class="dock-item' + (active === 'contents' ? ' on' : '') + '" data-act="contents">' + I.book + '<span>' + esc(t('contents')) + '</span></button>' +
-      '<button class="dock-rec" data-act="record" aria-label="' + esc(t('newPage')) + '"><span class="dock-rec-btn">' + I.mic + '</span><span>' + esc(t('recordShort')) + '</span></button>' +
+      '<button class="dock-rec" data-act="record"><span class="dock-rec-btn">' + I.mic + '</span><span>' + esc(t('newPage')) + '</span></button>' +
       '<button class="dock-item' + (active === 'calendar' ? ' on' : '') + '" data-act="calendar">' + I.cal + '<span>' + esc(t('calendar')) + '</span></button>' +
       '</nav>';
   }
 
   function viewHome() {
-    const ch = currentChapter();
-    const memory = onThisDay();
-    return '<section class="screen with-dock">' +
-      '<div class="topbar"><div class="brand-row">' + badgeHtml() + '<span class="brand-name"><b>' + esc(t('appTitle')) + '</b><span>' + esc(t('appSub')) + '</span></span></div>' +
-      '<div class="card-row">' + langPill() +
-      '<button class="iconbtn" data-act="settings" aria-label="' + esc(t('settings')) + '">' + I.gear + '</button></div></div>' +
-      todayCard() +
-      hopeLine() +
-      backupBanner() +
-      '<div class="cover-wrap">' + coverHtml(false) + '</div>' +
-      // Kept visually hidden (not display:none) so iPhone Safari still opens it from the photo circle.
+    return '<section class="screen home">' +
+      '<header class="topbar"><span class="brand-title">' + esc(t('appTitle')) + '</span>' +
+      '<div class="top-actions">' + langPill() +
+      '<button class="iconbtn raised" data-act="settings" aria-label="' + esc(t('settings')) + '">' + I.gear + (needsBackup() ? '<i class="badge-dot" aria-hidden="true"></i>' : '') + '</button></div></header>' +
+      dateBar() +
+      '<div class="cover-area">' + coverHtml(false) +
+      '<button class="soft-btn raised" data-act="contents">' + I.book + esc(t('openContents')) +
+      (S.entries.length ? '<span class="muted">' + esc(SEP() + pagesText(S.entries.length)) + '</span>' : '') + '</button></div>' +
+      hopeCard() +
+      // Visually hidden (not display:none) so iPhone Safari still opens it from the photo circle.
       '<input id="coverfile-home" class="sr-only" type="file" accept="image/*" data-cover-photo>' +
-      (ch ? '<div class="card card-row"><button class="linklike grow" data-act="contents"><span class="label">' + esc(t('currentChapter')) + '</span>' +
-        '<span class="card-row"><span class="value grow" dir="auto">' + esc(chTitle(ch)) + '</span><span class="muted small">' +
-        esc(pagesText(entriesOf(ch.id).length)) + '</span></span></button>' +
-        '<button class="row-edit" data-act="rename-chapter" data-id="' + esc(ch.id) + '" aria-label="' + esc(t('renameChapter')) + '">' + I.pen + '</button></div>' : '') +
-      (memory ? '<div class="card card-row"><button class="iconbtn" data-act="play" data-id="' + esc(memory.e.id) + '" aria-label="' + esc(entryTitle(memory.e)) + '">' + I.play + '</button>' +
-        '<span><span class="label">' + esc(t('onThisDay', { when: memory.when })) + '</span><br><span>' + esc(entryTitle(memory.e)) + '</span></span></div>' : '') +
       '</section>' + dock('home');
   }
 
@@ -616,6 +619,12 @@
       '<div>' + list + '</div>' +
       '<button class="btn btn-ghost" data-act="close-sheet">' + esc(t('close')) + '</button>'
     );
+    bindCalendarSwipe();
+  }
+
+  function bindCalendarSwipe() {
+    const g = sheet() && sheet().querySelector('.cal-grid');
+    if (g) onSwipe(g, (d) => moveMonth(d));
   }
 
   function moveMonth(dir) {
@@ -625,39 +634,42 @@
     openCalendar(true);
   }
 
+  function pageRow(e) {
+    const d = new Date(e.startedAt);
+    const cal = defaultCal();
+    return '<div class="prow' + (S.playingId === e.id ? ' playing' : '') + '">' +
+      '<button class="prow-main" data-act="play" data-id="' + esc(e.id) + '">' +
+      '<span class="dtile"><b>' + esc(fmtCal(d, cal, { day: 'numeric' })) + '</b><small>' + esc(fmtCal(d, cal, { month: 'short' })) + '</small></span>' +
+      '<span class="ptxt"><span dir="auto" class="pt' + (e.title ? '' : ' untitled') + '">' + esc(e.title || t('untitledTap')) + '</span>' +
+      '<span class="pm"><i class="mdot ' + moodClass(e.mood) + '" aria-hidden="true"></i>' + esc(fmtLen(e.durationSec) + SEP() + fmtDate(e.startedAt, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span></span></button>' +
+      '<button class="pbtn edit raised" data-act="edit-entry" data-id="' + esc(e.id) + '" aria-label="' + esc(t('edit')) + '">' + I.pen + '</button>' +
+      '<button class="pbtn play" data-act="play" data-id="' + esc(e.id) + '" aria-label="' + esc(t('play')) + '">' + I.play + '</button></div>';
+  }
+
   function viewContents() {
-    if (!S.openChapter && currentChapter()) S.openChapter = currentChapter().id;
-    const chapters = orderedChapters().map((ch) => {
-      const list = entriesOf(ch.id);
-      const open = S.openChapter === ch.id;
-      const range = list.length ? fmtDate(list[0].startedAt, { month: 'long', year: 'numeric' }) + SEP() : '';
-      let body = '';
-      if (open) {
-        body = '<div class="chapter-body"><div class="chapter-tools">' +
-          (list.length ? '<button class="chip chip-accent" data-act="play-chapter" data-id="' + esc(ch.id) + '">' + I.play + esc(t('playChapter')) + '</button>' : '') +
-          '<button class="chip" data-act="rename-chapter" data-id="' + esc(ch.id) + '">' + I.pen + esc(t('renameChapter')) + '</button>' +
-          (list.length ? '' : '<button class="chip" data-act="delete-chapter" data-id="' + esc(ch.id) + '">' + esc(t('deleteChapter')) + '</button>') + '</div>' +
-          (list.length ? list.map((e) => '<div class="page-line' + (S.playingId === e.id ? ' playing' : '') + '">' +
-            '<button class="page-row" data-act="play" data-id="' + esc(e.id) + '">' +
-            '<span class="bar ' + moodClass(e.mood) + '"></span>' +
-            '<span class="txt"><span dir="auto" class="t' + (e.title ? '' : ' untitled') + '">' + esc(e.title || t('untitled') + ' — ' + t('addTitle')) + '</span>' +
-            '<span class="d">' + esc(fmtDayTime(e.startedAt)) + SEP() + esc(fmtLen(e.durationSec)) + '</span></span></button>' +
-            '<button class="row-edit" data-act="edit-entry" data-id="' + esc(e.id) + '" aria-label="' + esc(t('edit')) + '">' + I.pen + '</button></div>').join('')
-            : '<div class="empty">' + esc(t('noPagesYet')) + '</div>') +
-          '</div>';
-      }
-      return '<div class="card chapter' + (open ? ' card-accent' : '') + '"><div class="chapter-top">' +
-        '<button class="chapter-head" data-act="toggle-chapter" data-id="' + esc(ch.id) + '" aria-expanded="' + open + '">' +
-        '<span class="row1"><span class="name" dir="auto">' + esc(chTitle(ch)) + '</span><span class="muted tiny">' + esc(range + pagesText(list.length)) + '</span></span>' +
-        '<span class="moodbar" aria-hidden="true">' + list.slice(-12).map((e) => '<span class="' + moodClass(e.mood) + '"></span>').join('') + '</span>' +
-        '</button><button class="row-edit" data-act="rename-chapter" data-id="' + esc(ch.id) + '" aria-label="' + esc(t('renameChapter')) + '">' + I.pen + '</button></div>' + body + '</div>';
-    }).join('');
-    return '<section class="screen with-dock">' +
-      '<div class="topbar"><button class="iconbtn flip-rtl" data-act="home" aria-label="' + esc(t('back')) + '">' + I.back + '</button>' +
-      '<h1>' + esc(t('contents')) + '</h1>' +
-      '<button class="chip" data-act="new-chapter">' + esc(t('newChapter')) + '</button></div>' +
+    const cur = currentChapter();
+    if (!S.openChapter || !S.chapters.some((c) => c.id === S.openChapter)) S.openChapter = cur ? cur.id : null;
+    const ch = S.chapters.find((c) => c.id === S.openChapter);
+    const list = ch ? entriesOf(ch.id).slice().reverse() : [];
+    const memory = onThisDay();
+    const others = orderedChapters().filter((c) => !ch || c.id !== ch.id).reverse();
+    return '<section class="screen list">' +
+      '<header class="topbar"><button class="iconbtn raised flip-rtl" data-act="back" aria-label="' + esc(t('back')) + '">' + I.back + '</button>' +
+      '<span class="brand-title grow">' + esc(t('contents')) + '</span>' +
+      '<button class="small-btn raised" data-act="new-chapter">' + esc(t('newChapter')) + '</button></header>' +
       backupBanner() +
-      (chapters || '<div class="empty">' + esc(t('noPagesYet')) + '</div>') +
+      (memory ? '<button class="memory raised" data-act="play" data-id="' + esc(memory.e.id) + '"><span class="pbtn play" aria-hidden="true">' + I.play + '</span>' +
+        '<span class="ptxt"><span class="hc-label">' + esc(t('onThisDay', { when: memory.when })) + '</span><span class="pt" dir="auto">' + esc(entryTitle(memory.e)) + '</span></span></button>' : '') +
+      (ch ? '<div class="chap-head"><span class="ch-names"><small>' + esc(ch === cur ? t('currentChapter') : t('chapter')) + '</small><b dir="auto">' + esc(chTitle(ch)) + '</b></span>' +
+        '<span class="ch-actions">' +
+        (list.length ? '<button class="small-btn dark" data-act="play-chapter" data-id="' + esc(ch.id) + '">' + I.play + esc(t('playChapterShort')) + '</button>' : '') +
+        '<button class="small-btn raised" data-act="rename-chapter" data-id="' + esc(ch.id) + '">' + I.pen + esc(t('edit')) + '</button>' +
+        (list.length ? '' : '<button class="small-btn raised" data-act="delete-chapter" data-id="' + esc(ch.id) + '">' + esc(t('delete')) + '</button>') +
+        '</span></div>' +
+        (list.length ? '<div class="plist raised">' + list.map(pageRow).join('') + '</div>' : '<div class="empty">' + esc(t('noPagesYet')) + '</div>') : '') +
+      (others.length ? '<span class="sec-label">' + esc(t('otherChapters')) + '</span>' +
+        others.map((c) => '<button class="chap-link raised" data-act="open-chapter" data-id="' + esc(c.id) + '"><b dir="auto">' + esc(chTitle(c)) + '</b>' +
+          '<span class="muted">' + esc(pagesText(entriesOf(c.id).length)) + '</span>' + '<span class="chev flip-ltr">' + I.back + '</span></button>').join('') : '') +
       '</section>' + dock('contents');
   }
 
@@ -698,14 +710,17 @@
     async start() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) { toast(t('micUnsupported')); return; }
       try {
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       } catch (e) {
         toast(t('micDenied'));
         return;
       }
       const want = this.pickMime();
       try {
-        this.mr = want ? new MediaRecorder(this.stream, { mimeType: want }) : new MediaRecorder(this.stream);
+        // Speech needs little data: mono AAC at 48 kbps (~21 MB an hour) or Opus at 32 kbps (~14 MB an hour)
+        // sounds clear while keeping files small.
+        const bits = /opus|webm|ogg/.test(want) ? 32000 : 48000;
+        this.mr = want ? new MediaRecorder(this.stream, { mimeType: want, audioBitsPerSecond: bits }) : new MediaRecorder(this.stream, { audioBitsPerSecond: bits });
       } catch (e) {
         this.mr = new MediaRecorder(this.stream);
       }
@@ -858,19 +873,114 @@
   window.addEventListener('beforeunload', (e) => { if (Rec.active) { e.preventDefault(); e.returnValue = ''; } });
 
   // ---------------------------------------------------------------- sheets
+  // Sheets slide up from the bottom. Each open sheet is one step in the browser history,
+  // so Back (button, or the edge swipe) closes it; pulling it down closes it too.
   let sheetCleanup = null;
-  function openSheet(html, onClose) {
-    closeSheet();
+  let sheetModal = false;
+  function openSheet(html, onClose, opts) {
+    const already = !!sheetRoot.firstChild;
+    if (already && sheetCleanup) { const fn = sheetCleanup; sheetCleanup = null; fn(); }
+    sheetModal = !!(opts && opts.modal);
     sheetRoot.innerHTML = '<div class="overlay" data-overlay><div class="sheet" role="dialog" aria-modal="true">' +
       '<div class="grab" aria-hidden="true"></div>' + html + '</div></div>';
     sheetCleanup = onClose || null;
-    const f = sheetRoot.querySelector('[autofocus]') || sheetRoot.querySelector('button, input');
+    if (!already) pushStep({ sheet: 1 });
+    const f = sheetRoot.querySelector('[autofocus]');
     if (f) f.focus();
+    bindSheetDrag();
   }
-  function closeSheet() {
+  function closeSheetDom() {
     if (sheetCleanup) { const fn = sheetCleanup; sheetCleanup = null; fn(); }
     sheetRoot.innerHTML = '';
+    sheetModal = false;
   }
+  function closeSheet() {
+    if (!sheetRoot.firstChild) return;
+    closeSheetDom();
+    popStep();
+  }
+
+  // ---- history (Back button and edge swipe)
+  let ignorePops = 0;
+  function pushStep(state) { try { history.pushState(state, ''); } catch (e) { /* ignore */ } }
+  function popStep() {
+    if (history.state && (history.state.sheet || history.state.view)) { ignorePops++; history.back(); }
+  }
+  function go(view) {
+    if (view === S.view) return;
+    if (view === 'home') { if (history.state && history.state.view && history.state.view !== 'home') { history.back(); return; } S.view = 'home'; render(); return; }
+    pushStep({ view });
+    S.view = view;
+    render();
+    const sc = app.querySelector('.screen'); if (sc) sc.scrollTop = 0;
+  }
+  window.addEventListener('popstate', (e) => {
+    if (ignorePops > 0) { ignorePops--; return; }
+    if (sheetRoot.firstChild) {
+      if (sheetModal) { pushStep({ sheet: 1 }); return; } // the save sheet must be answered
+      closeSheetDom();
+      return;
+    }
+    if (S.view === 'recorder') { pushStep({ view: 'recorder' }); return; }
+    const v = (e.state && e.state.view) || 'home';
+    S.view = (v === 'welcome' && S.settings.name) ? 'home' : v;
+    render();
+  });
+
+  // ---- pull a sheet down to close it
+  function bindSheetDrag() {
+    const sh = sheet();
+    if (!sh) return;
+    let y0 = null; let dy = 0;
+    sh.addEventListener('touchstart', (ev) => {
+      if (sheetModal) return;
+      const fromHandle = ev.target.closest('.grab, .sheet-head');
+      if (sh.scrollTop > 0 && !fromHandle) return;
+      y0 = ev.touches[0].clientY; dy = 0; sh.style.transition = 'none';
+    }, { passive: true });
+    sh.addEventListener('touchmove', (ev) => {
+      if (y0 === null) return;
+      dy = Math.max(0, ev.touches[0].clientY - y0);
+      sh.style.transform = 'translateY(' + dy + 'px)';
+    }, { passive: true });
+    sh.addEventListener('touchend', () => {
+      if (y0 === null) return;
+      y0 = null; sh.style.transition = '';
+      if (dy > 110) closeSheet(); else sh.style.transform = '';
+    });
+  }
+
+  // ---- edge swipe back for the home-screen app (Safari already has its own)
+  (function edgeBack() {
+    let x0 = null; let y0 = 0;
+    document.addEventListener('touchstart', (ev) => {
+      const tch = ev.touches[0];
+      x0 = tch.clientX < 24 ? tch.clientX : null; y0 = tch.clientY;
+    }, { passive: true });
+    document.addEventListener('touchend', (ev) => {
+      if (x0 === null) return;
+      const tch = ev.changedTouches[0];
+      if (tch.clientX - x0 > 90 && Math.abs(tch.clientY - y0) < 60 && window.navigator.standalone) history.back();
+      x0 = null;
+    }, { passive: true });
+  })();
+
+  // ---- horizontal swipe helper (calendar months, player pages)
+  function onSwipe(el, fn) {
+    let x0 = null; let y0 = 0;
+    el.addEventListener('touchstart', (ev) => { x0 = ev.touches[0].clientX; y0 = ev.touches[0].clientY; }, { passive: true });
+    el.addEventListener('touchend', (ev) => {
+      if (x0 === null) return;
+      const dx = ev.changedTouches[0].clientX - x0; const dy = ev.changedTouches[0].clientY - y0;
+      x0 = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        // "Forward" is to the left in English and to the right in Persian.
+        const forward = lang() === 'fa' ? dx > 0 : dx < 0;
+        fn(forward ? 1 : -1);
+      }
+    }, { passive: true });
+  }
+
   const sheet = () => sheetRoot.querySelector('.sheet');
 
   function moodButtons(selected) {
@@ -910,16 +1020,17 @@
     saving = rec;
     const ch = currentChapter();
     openSheet(
-      '<div class="center"><span class="muted small">' + esc(fmtClock(rec.durationSec)) + SEP() + esc(fmtDayTime(rec.startedAt)) + '</span></div>' +
+      '<div class="sheet-head"><b>' + esc(t('savedCheck')) + '</b><span class="muted small">' + esc(fmtLen(rec.durationSec) || fmtClock(rec.durationSec)) + SEP() + esc(fmtDate(rec.startedAt, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span></div>' +
       (rec.interrupted ? '<div class="note">' + esc(t('recInterrupted')) + '</div>' : '') +
       '<div class="field"><label for="ttl">' + esc(t('whatAbout')) + '</label>' +
-      '<input id="ttl" type="text" maxlength="200" placeholder="' + esc(t('titleExample')) + '" autofocus>' +
-      '<span class="muted tiny">' + esc(t('titleHint')) + '</span></div>' +
-      '<div class="field"><span class="label">' + esc(t('moodOptional')) + '</span>' + moodButtons(null) + '</div>' +
-      '<div class="field"><span class="label">' + esc(t('whichChapter')) + '</span>' + chapterChips(ch ? ch.id : '__new') + '</div>' +
-      '<div class="btn-row"><button class="btn btn-primary" data-act="save-rec">' + esc(t('save')) + '</button>' +
-      '<button class="btn btn-ghost" data-act="save-rec" data-later="1">' + esc(t('later')) + '</button></div>' +
-      '<button class="btn btn-danger" data-act="discard-rec">' + esc(t('discard')) + '</button>'
+      '<input id="ttl" class="big-input" type="text" maxlength="200" dir="auto" placeholder="' + esc(t('titleExample')) + '" autofocus enterkeyhint="done"></div>' +
+      '<details class="more"><summary class="raised-soft"><span><b>' + esc(t('moreOptions')) + '</b><small data-more-summary>' + esc(t('moodNone') + SEP() + t('chapter') + ': ' + chTitle(ch)) + '</small></span>' + I.down + '</summary>' +
+      '<div class="more-body"><div class="field"><span class="label">' + esc(t('moodOptional')) + '</span>' + moodButtons(null) + '</div>' +
+      '<div class="field"><span class="label">' + esc(t('whichChapter')) + '</span>' + chapterChips(ch ? ch.id : '__new') + '</div></div></details>' +
+      '<button class="btn btn-primary btn-big" data-act="save-rec">' + esc(t('save')) + '</button>' +
+      '<div class="sheet-foot"><button class="small-btn raised" data-act="save-rec" data-later="1">' + esc(t('saveUntitled')) + '</button>' +
+      '<button class="text-danger" data-act="discard-rec">' + esc(t('discard')) + '</button></div>',
+      null, { modal: true }
     );
   }
 
@@ -940,9 +1051,11 @@
       await safe(DB.dropSession(rec.sessionId));
       Rec.sessionId = null;
       saving = null;
-      closeSheet();
+      // Swap the sheet's history step for the contents page, so Back then returns home.
+      closeSheetDom();
       S.openChapter = entry.chapterId;
       S.view = 'contents';
+      try { history.replaceState({ view: 'contents' }, ''); } catch (e) { /* ignore */ }
       render();
       toast(t('saved'));
     } catch (e) {
@@ -958,6 +1071,15 @@
     Rec.sessionId = null;
     saving = null;
     closeSheet();
+  }
+
+  function updateMoreSummary() {
+    const el = sheet() && sheet().querySelector('[data-more-summary]');
+    if (!el) return;
+    const m = sheetValue('pick-mood');
+    const c = sheetValue('pick-chapter');
+    const chName = c === '__new' ? t('newChapterName') : chTitle(S.chapters.find((x) => x.id === c));
+    el.textContent = (m ? t('moods.' + m) : t('moodNone')) + SEP() + t('chapter') + ': ' + chName;
   }
 
   // ----- player
@@ -1003,6 +1125,13 @@
     );
     syncPlayer();
     if (audio.src && (fromQueue || audio.paused)) safe(audio.play());
+    const sh = sheet();
+    if (sh) onSwipe(sh, (d) => {
+      const list = entriesOf(entry.chapterId);
+      const i = list.findIndex((x) => x.id === entry.id);
+      const next = list[i + d];
+      if (next) openPlayer(next);
+    });
   }
 
   function syncPlayer() {
@@ -1027,6 +1156,7 @@
     if (!root) return;
     const e = S.playingId && S.entries.find((x) => x.id === S.playingId);
     const show = e && audio.getAttribute('src') && (S.view === 'home' || S.view === 'contents');
+    document.body.classList.toggle('has-mini', !!show);
     if (!show) { root.innerHTML = ''; return; }
     root.innerHTML = '<div class="mini" role="region" aria-label="' + esc(t('nowPlaying')) + '">' +
       '<button class="mini-btn" data-act="toggle-play" aria-label="' + esc(audio.paused ? t('play') : t('pause')) + '">' + (audio.paused ? I.play : I.pause) + '</button>' +
@@ -1148,31 +1278,30 @@
   function openSettings() {
     const th = S.settings.theme || 'light';
     openSheet(
-      '<h2>' + esc(t('settings')) + '</h2>' +
+      '<div class="sheet-head"><b>' + esc(t('settings')) + '</b><button class="small-btn raised" data-act="save-settings">' + esc(t('done')) + '</button></div>' +
+      '<section class="group"><h3>' + esc(t('groupMe')) + '</h3>' +
+      '<div class="photo-row"><label class="cover-photo preview" for="coverfile">' + (S.coverUrl ? '<img src="' + S.coverUrl + '" alt="">' : '<span class="ph">' + I.camera + '</span>') + '</label>' +
+      '<div class="photo-btns"><label class="small-btn raised" for="coverfile">' + I.camera + esc(S.coverUrl ? t('changePhoto') : t('choosePhoto')) + '</label>' +
+      (S.coverUrl ? '<button class="small-btn raised" data-act="remove-photo">' + esc(t('removePhoto')) + '</button>' : '') + '</div></div>' +
+      '<input id="coverfile" class="sr-only" type="file" accept="image/*" data-cover-photo>' +
       '<div class="field"><label for="setname">' + esc(t('whose')) + '</label>' +
-      '<input id="setname" type="text" maxlength="60" value="' + esc(S.settings.name || '') + '"></div>' +
+      '<input id="setname" type="text" maxlength="60" dir="auto" value="' + esc(S.settings.name || '') + '"></div>' +
       '<div class="field"><label for="setnameen">' + esc(t('nameEnLabel')) + '</label>' +
-      '<input id="setnameen" type="text" maxlength="60" dir="ltr" autocomplete="off" placeholder="Alireza" value="' + esc(S.settings.nameEn || '') + '">' +
-      '<span class="muted tiny">' + esc(t('nameEnHint')) + '</span></div>' +
-      '<div class="field"><span class="label">' + esc(t('coverPhoto')) + '</span><div class="photo-row">' +
-      '<span class="cover-photo preview">' + (S.coverUrl ? '<img src="' + S.coverUrl + '" alt="">' : '<img class="orn-med" src="orn/medallion.svg" alt="">') + '</span>' +
-      '<div class="photo-btns"><label class="btn btn-primary" for="coverfile">' + I.camera + esc(S.coverUrl ? t('changePhoto') : t('choosePhoto')) + '</label>' +
-      (S.coverUrl ? '<button class="btn btn-ghost" data-act="remove-photo">' + esc(t('removePhoto')) + '</button>' : '') + '</div></div>' +
-      '<input id="coverfile" class="sr-only" type="file" accept="image/*" data-cover-photo></div>' +
+      '<input id="setnameen" type="text" maxlength="60" dir="ltr" autocomplete="off" placeholder="Alireza" value="' + esc(S.settings.nameEn || '') + '"></div></section>' +
+      '<section class="group"><h3>' + esc(t('groupLook')) + '</h3>' +
       '<div class="field"><span class="label">' + esc(t('language')) + '</span><div class="seg">' +
       '<button data-act="set-lang" data-lang="fa" aria-pressed="' + (lang() === 'fa') + '">فارسی</button>' +
       '<button data-act="set-lang" data-lang="en" aria-pressed="' + (lang() === 'en') + '">English</button></div></div>' +
-      '<div class="field"><span class="label">' + esc(t('theme')) + '</span><div class="chips">' +
-      ['auto', 'dark', 'light'].map((k) => '<button class="chip" data-act="set-theme" data-theme="' + k + '" aria-pressed="' + (th === k) + '">' +
-        esc(t(k === 'auto' ? 'themeAuto' : k === 'dark' ? 'themeDark' : 'themeLight')) + '</button>').join('') + '</div></div>' +
-      '<div class="field"><span class="label">' + esc(t('backupTitle')) + '</span>' +
+      '<div class="field"><span class="label">' + esc(t('theme')) + '</span><div class="seg three">' +
+      ['light', 'dark', 'auto'].map((k) => '<button data-act="set-theme" data-theme="' + k + '" aria-pressed="' + (th === k) + '">' +
+        esc(t(k === 'auto' ? 'themeAutoShort' : k === 'dark' ? 'themeDark' : 'themeLight')) + '</button>').join('') + '</div></div></section>' +
+      '<section class="group"><h3>' + esc(t('groupData')) + '</h3>' +
       '<span class="muted small">' + esc(t('backupHint')) + '</span>' +
       '<span class="muted tiny" data-storage></span>' +
-      '<div class="btn-row"><button class="btn btn-primary" data-act="backup">' + esc(t('backupNow')) + '</button>' +
-      '<label class="btn btn-ghost" for="restorefile">' + esc(t('restore')) + '</label></div>' +
-      '<input id="restorefile" class="sr-only" type="file" accept=".zip,application/zip" data-restore></div>' +
-      '<button class="btn btn-ghost" data-act="open-import">' + esc(t('importTitle')) + '</button>' +
-      '<button class="btn btn-primary" data-act="save-settings">' + esc(t('done')) + '</button>'
+      '<div class="btn-row"><button class="small-btn dark" data-act="backup">' + esc(t('backupNow')) + '</button>' +
+      '<label class="small-btn raised" for="restorefile">' + esc(t('restore')) + '</label>' +
+      '<button class="small-btn raised" data-act="open-import">' + esc(t('importTitle')) + '</button></div>' +
+      '<input id="restorefile" class="sr-only" type="file" accept=".zip,application/zip" data-restore></section>'
     );
     showStorage();
   }
@@ -1234,7 +1363,7 @@
     }
     await putSettings({ lastBackupAt: nowIso() });
     toast(t('backupDone'));
-    if (S.view === 'home') render();
+    if (S.view === 'home' || S.view === 'contents') render();
     showStorage();
   }
 
@@ -1385,8 +1514,10 @@
 
   // ---------------------------------------------------------------- events
   const actions = {
-    'contents': () => { S.view = 'contents'; render(); window.scrollTo(0, 0); },
-    'home': () => { S.view = 'home'; render(); window.scrollTo(0, 0); },
+    'contents': () => go('contents'),
+    'home': () => go('home'),
+    'back': () => { if (history.state && history.state.view && history.state.view !== 'home') history.back(); else go('home'); },
+    'open-chapter': (el) => { S.openChapter = el.dataset.id; render(); const sc = app.querySelector('.screen'); if (sc) sc.scrollTop = 0; },
     'settings': openSettings,
     'calendar': () => openCalendar(false),
     'cal-prev': () => moveMonth(-1),
@@ -1398,7 +1529,7 @@
       if (!list.length) return;
       S.hopeIndex = (S.hopeIndex + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length;
       const el = app.querySelector('[data-hope]');
-      if (el) { el.textContent = list[S.hopeIndex]; el.parentElement.classList.remove('swap'); void el.offsetWidth; el.parentElement.classList.add('swap'); }
+      if (el) { el.textContent = list[S.hopeIndex]; const card = el.closest('.hope-card'); if (card) { card.classList.remove('swap'); void card.offsetWidth; card.classList.add('swap'); } }
     },
     'record': () => { if (!audio.paused) stopAudio(); Rec.start(); },
     'rec-mark': () => Rec.mark(),
@@ -1435,7 +1566,9 @@
       try {
         await putSettings({ name, lang: lang() });
         if (!S.chapters.length) await createChapter(t('defaultChapter'), true);
-        S.view = 'home'; render(); playIntro();
+        S.view = 'home';
+        try { history.replaceState({ view: 'home' }, ''); } catch (e) { /* ignore */ }
+        render(); playIntro();
         askPersistence();
       } catch (e) { el.disabled = false; toast(t('saveFailed')); }
     },
@@ -1475,11 +1608,12 @@
     'edit-entry': (el) => { const e = S.entries.find((x) => x.id === el.dataset.id); if (e) openEdit(e); },
     'save-edit': (el) => saveEdit(el.dataset.id),
     'delete-entry': (el) => deleteEntry(el.dataset.id),
-    'pick-mood': (el) => sheetPick('pick-mood', el.getAttribute('aria-pressed') === 'true' ? null : el.dataset.mood),
+    'pick-mood': (el) => { sheetPick('pick-mood', el.getAttribute('aria-pressed') === 'true' ? null : el.dataset.mood); updateMoreSummary(); },
     'pick-chapter': (el) => {
       sheetPick('pick-chapter', el.dataset.id);
       const box = sheet().querySelector('[data-newch]');
       if (box) { box.hidden = el.dataset.id !== '__new'; if (!box.hidden) box.querySelector('input').focus(); }
+      updateMoreSummary();
     },
     'save-rec': (el) => saveRecording(el.dataset.later === '1'),
     'discard-rec': discardRecording,
@@ -1546,36 +1680,15 @@
     }
   });
 
-  // ---------------------------------------------------------------- tile frame
-  // The tiled band around the app: a rounded hole is cut out of a full-screen tile layer.
-  function sizeFrame() {
-    const el = document.getElementById('frame');
-    if (!el) return;
-    const css = getComputedStyle(document.documentElement);
-    const b = parseFloat(css.getPropertyValue('--band')) || 16;
-    const r = parseFloat(css.getPropertyValue('--frame-radius')) || 38;
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    const d = 'M0 0H' + w + 'V' + h + 'H0Z' +
-      'M' + (b + r) + ' ' + b + 'H' + (w - b - r) + 'A' + r + ' ' + r + ' 0 0 1 ' + (w - b) + ' ' + (b + r) +
-      'V' + (h - b - r) + 'A' + r + ' ' + r + ' 0 0 1 ' + (w - b - r) + ' ' + (h - b) +
-      'H' + (b + r) + 'A' + r + ' ' + r + ' 0 0 1 ' + b + ' ' + (h - b - r) +
-      'V' + (b + r) + 'A' + r + ' ' + r + ' 0 0 1 ' + (b + r) + ' ' + b + 'Z';
-    el.style.clipPath = 'path(evenodd, "' + d + '")';
-    el.style.webkitClipPath = el.style.clipPath;
-  }
-  window.addEventListener('resize', sizeFrame);
-  sizeFrame();
-
   // ---------------------------------------------------------------- start
   async function boot() {
-    try { S.hasLogo = (await fetch('icons/ar-logo.png', { method: 'HEAD' })).ok; } catch (e) { S.hasLogo = false; }
     try { await loadState(); } catch (e) {
       console.error(e);
       app.innerHTML = '<section class="screen center"><div class="grow"></div><p>' + esc(t('noStorage')) + '</p><div class="grow"></div></section>';
       return;
     }
     S.view = S.settings.name ? 'home' : 'welcome';
+    try { history.replaceState({ view: S.view }, ''); } catch (e) { /* ignore */ }
     render();
     if (S.view === 'home') playIntro();
     await safe(recoverSessions());
