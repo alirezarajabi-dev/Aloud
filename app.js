@@ -267,14 +267,20 @@
     return '<div class="spine" aria-hidden="true">' + list.map((m) => '<span class="' + moodClass(m) + '"></span>').join('') + '</div>';
   }
 
+  // Persian illumination (tazhib): gilded corner pieces
+  function cornersHtml() {
+    return ['tl', 'tr', 'bl', 'br'].map((c) => '<img class="orn-c ' + c + '" src="orn/corner.svg" alt="" aria-hidden="true">').join('');
+  }
+
   function coverHtml(small) {
     const name = (lang() === 'en' && S.settings.nameEn) || S.settings.name || t('yourName');
     const meta = S.entries.length
       ? chaptersPagesText(S.chapters.length, S.entries.length)
       : t('noPagesYet');
-    const inner = spineHtml() + '<div class="frame" aria-hidden="true"></div>' +
+    const inner = spineHtml() + '<div class="frame" aria-hidden="true"></div>' + cornersHtml() +
       '<span class="vol">' + esc(t('notebookOne')) + '</span>' +
-      '<span class="title"><span class="t1">' + esc(t('journalOf')) + '</span><span class="t2" data-cover-name>' + esc(name) + '</span></span>' +
+      '<span class="title"><img class="orn-med" src="orn/medallion.svg" alt="" aria-hidden="true">' +
+      '<span class="t1">' + esc(t('journalOf')) + '</span><span class="t2" data-cover-name>' + esc(name) + '</span></span>' +
       '<span class="meta">' + esc(meta) + '</span>';
     if (small) return '<div class="cover small" aria-hidden="true">' + inner + '</div>';
     return '<button class="cover" data-act="contents" aria-label="' + esc(t('contents')) + '">' + inner + '</button>';
@@ -364,7 +370,8 @@
       S.hopeIndex = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000) % hopes.length;
     }
     const quote = hopes.length ? hopes[S.hopeIndex % hopes.length] : '';
-    wrap.innerHTML = '<div class="intro-book"><div class="intro-page"><span class="eyebrow">' + esc(fmtCal(new Date(), defaultCal(), { weekday: 'long', day: 'numeric', month: 'long' })) + '</span>' +
+    wrap.innerHTML = '<div class="intro-book"><div class="intro-page">' + cornersHtml() +
+      '<img class="orn-head" src="orn/headpiece.svg" alt="" aria-hidden="true"><span class="eyebrow">' + esc(fmtCal(new Date(), defaultCal(), { weekday: 'long', day: 'numeric', month: 'long' })) + '</span>' +
       '<div class="intro-write" dir="auto"></div>' +
       '<div class="intro-quote" dir="auto"><span class="q-mark" aria-hidden="true">“</span>' + esc(quote) + '</div></div>' +
       '<div class="intro-cover">' + coverHtml(true) + '</div></div><span class="intro-skip">' + esc(t('tapToSkip')) + '</span>';
@@ -1347,6 +1354,27 @@
       } catch (e) { toast(t('saveFailed')); }
     }
   });
+
+  // ---------------------------------------------------------------- tile frame
+  // The tiled band around the app: a rounded hole is cut out of a full-screen tile layer.
+  function sizeFrame() {
+    const el = document.getElementById('frame');
+    if (!el) return;
+    const css = getComputedStyle(document.documentElement);
+    const b = parseFloat(css.getPropertyValue('--band')) || 16;
+    const r = parseFloat(css.getPropertyValue('--frame-radius')) || 38;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const d = 'M0 0H' + w + 'V' + h + 'H0Z' +
+      'M' + (b + r) + ' ' + b + 'H' + (w - b - r) + 'A' + r + ' ' + r + ' 0 0 1 ' + (w - b) + ' ' + (b + r) +
+      'V' + (h - b - r) + 'A' + r + ' ' + r + ' 0 0 1 ' + (w - b - r) + ' ' + (h - b) +
+      'H' + (b + r) + 'A' + r + ' ' + r + ' 0 0 1 ' + b + ' ' + (h - b - r) +
+      'V' + (b + r) + 'A' + r + ' ' + r + ' 0 0 1 ' + (b + r) + ' ' + b + 'Z';
+    el.style.clipPath = 'path(evenodd, "' + d + '")';
+    el.style.webkitClipPath = el.style.clipPath;
+  }
+  window.addEventListener('resize', sizeFrame);
+  sizeFrame();
 
   // ---------------------------------------------------------------- start
   async function boot() {

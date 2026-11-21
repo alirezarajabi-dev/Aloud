@@ -501,3 +501,48 @@ body::before {
   /* the navy band fills everything outside the rounded yellow line */
   box-shadow: 0 0 0 220px var(--navy);
 }
+
+
+/* ================= v6: Persian tile frame + tazhib ================= */
+:root { --band: 18px; --frame: 18px; --frame-radius: 34px; --lapis: #1E4E8C; --gilt: #D9A441; }
+body::before { content: none; display: none; }
+#frame { position: fixed; inset: 0; z-index: 100; pointer-events: none;
+  background: #0C1B2E url('icons/tile.jpg') 0 0 / 92px auto repeat; }
+#frame-line { position: fixed; inset: var(--band); z-index: 101; pointer-events: none;
+  border: 2px solid var(--gold); border-radius: var(--frame-radius);
+  box-shadow: 0 0 0 2px #0C1B2E, inset 0 0 0 1.5px #0C1B2E; }
+.screen { padding-left: calc(18px + var(--band)); padding-right: calc(18px + var(--band)); padding-top: calc(env(safe-area-inset-top) + 18px + var(--band)); }
+.with-dock { padding-bottom: calc(env(safe-area-inset-bottom) + 120px + var(--band)); }
+.dock { bottom: calc(env(safe-area-inset-bottom) + 10px + var(--band)); width: min(440px, calc(100% - 20px - 2 * var(--band))); }
+#toast { bottom: calc(env(safe-area-inset-bottom) + 110px + var(--band)); }
+.overlay { z-index: 90; }
+.intro { z-index: 95; }
+
+/* cover: gilded double rule, corner pieces, small medallion above the title */
+.cover .frame { border: 1.5px solid var(--gilt); box-shadow: inset 0 0 0 3px transparent, inset 0 0 0 4px rgba(217, 164, 65, 0.55); }
+.cover .orn-c { position: absolute; width: 46px; height: 46px; pointer-events: none; }
+.cover .orn-c.tl { top: 8px; left: 8px; }
+.cover .orn-c.tr { top: 8px; right: 8px; transform: scaleX(-1); }
+.cover .orn-c.bl { bottom: 8px; left: 8px; transform: scaleY(-1); }
+.cover .orn-c.br { bottom: 8px; right: 8px; transform: scale(-1, -1); }
+html[dir='rtl'] .cover .orn-c.tr, html[dir='rtl'] .cover .orn-c.br { right: 22px; }
+html[dir='ltr'] .cover .orn-c.tl, html[dir='ltr'] .cover .orn-c.bl { left: 22px; }
+.cover.small .orn-c { width: 30px; height: 30px; top: auto; bottom: auto; }
+.cover.small .orn-c.tl, .cover.small .orn-c.tr { top: 6px; }
+.cover.small .orn-c.bl, .cover.small .orn-c.br { bottom: 6px; }
+.cover .orn-med { width: 58px; height: 58px; margin-bottom: 4px; }
+.cover.small .orn-med { width: 40px; height: 40px; }
+.intro-cover .cover .orn-c { width: 46px; height: 46px; }
+.intro-cover .cover .orn-med { width: 58px; height: 58px; }
+.cover .vol, .cover .meta { position: relative; z-index: 1; }
+
+/* opened page: headpiece (sarlowh), gilded rule, corner pieces */
+.intro-page { padding-top: 22px; border: 1.5px solid var(--gilt); box-shadow: var(--shadow), inset 0 0 0 5px var(--cream), inset 0 0 0 6px rgba(217, 164, 65, 0.6); }
+.intro-page .orn-head { width: 100%; height: auto; display: block; margin: 0 auto 4px; }
+.intro-page .orn-c { position: absolute; width: 30px; height: 30px; pointer-events: none; }
+.intro-page .orn-c.tl { top: 6px; left: 6px; }
+.intro-page .orn-c.tr { top: 6px; right: 6px; transform: scaleX(-1); }
+.intro-page .orn-c.bl { bottom: 6px; left: 6px; transform: scaleY(-1); }
+.intro-page .orn-c.br { bottom: 6px; right: 6px; transform: scale(-1, -1); }
+.intro-page .eyebrow { justify-content: center; }
+.intro-write { text-align: center; }
