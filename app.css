@@ -400,3 +400,60 @@ html[dir='ltr'] .intro.open .intro-cover { transform: rotateY(-160deg); }
 .cover .spine .mood-none { background: rgba(221, 167, 125, 0.35); }
 .banner .chip { white-space: nowrap; flex: none; }
 #toast { bottom: calc(env(safe-area-inset-bottom) + 104px); }
+
+/* ================= Site look (v3): cream page, green hero, AR badge, coloured borders ================= */
+:root { --navy: #0C1B2E; --gold: #FEBF17; --ring: linear-gradient(135deg, #DDA77D 0%, #FEBF17 45%, #0C1B2E 100%); }
+
+/* coloured frame for every option card */
+.card, .today, .banner, .dock, .seg button, .field input[type='text'] {
+  border: 1.5px solid transparent;
+  background: linear-gradient(var(--surface), var(--surface)) padding-box, var(--ring) border-box;
+}
+.sheet .field input[type='text'] { background: linear-gradient(var(--bg), var(--bg)) padding-box, var(--ring) border-box; }
+.seg button[aria-pressed='true'] { border: 2px solid transparent; background: linear-gradient(var(--accent-soft), var(--accent-soft)) padding-box, var(--ring) border-box; }
+.dock { background: linear-gradient(color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface) 92%, transparent)) padding-box, var(--ring) border-box; }
+.chip { border-color: var(--copper); }
+.chip[aria-pressed='true'] { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+.iconbtn, .pill { border-color: rgba(221, 167, 125, 0.55); }
+.card.chapter.card-accent { border-width: 2px; }
+
+/* AR badge: navy outer ring, yellow inner ring */
+.badge { width: 54px; height: 54px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center;
+  background: var(--cream); border: 3px solid var(--navy); box-shadow: inset 0 0 0 2px var(--gold), 0 6px 16px rgba(12, 27, 46, 0.22); overflow: hidden; }
+.badge img { width: 78%; height: 78%; object-fit: contain; }
+.badge .ar { font-family: var(--serif); font-size: 25px; font-weight: 600; color: var(--green); direction: ltr; letter-spacing: -0.5px; }
+.badge .ar i { color: var(--copper-dark); font-style: normal; }
+.brand-row { display: flex; align-items: center; gap: 12px; }
+.brand-row .brand-name { display: flex; flex-direction: column; line-height: 1.15; }
+.brand-row .brand-name b { font-size: 16px; font-weight: 700; }
+.brand-row .brand-name span { font-size: 12px; color: var(--muted); }
+
+/* today = the green hero band of alirezarajabi.com */
+.today { background: linear-gradient(var(--green), var(--green)) padding-box, var(--ring) border-box; color: #F2EEE4; padding: 20px 22px; }
+.today .eyebrow { color: var(--sage); }
+.today-main { color: #F2EEE4; }
+.today-second { color: var(--copper); }
+.today-time { font-family: Vazirmatn, Manrope, sans-serif; font-weight: 700; font-size: 30px; color: #F2EEE4; letter-spacing: 0; }
+html[lang='en'] .today-time { font-family: var(--serif); font-weight: 600; font-size: 38px; }
+.timer { font-weight: 700; }
+html[lang='en'] .timer { font-family: var(--serif); font-weight: 600; }
+
+
+/* opening page: written in the cover font, then the day's line jumps out */
+.intro-page { justify-content: flex-start; padding-top: 34px; }
+.intro-write { font-family: 'Afsaneh', Vazirmatn, serif; font-size: 30px; line-height: 1.6; min-height: 0; color: var(--green); }
+html[lang='en'] .intro-write { font-family: var(--serif); font-style: italic; font-size: 30px; line-height: 1.2; }
+.intro-quote {
+  margin-top: auto; position: relative; padding: 16px 16px 14px; border-radius: 14px;
+  font-family: 'Afsaneh', Vazirmatn, serif; font-size: 22px; line-height: 1.6; color: #F2EEE4; text-align: center;
+  background: linear-gradient(var(--green), var(--green)) padding-box, var(--ring) border-box; border: 1.5px solid transparent;
+  box-shadow: 0 18px 34px rgba(12, 27, 46, 0.35);
+  opacity: 0; transform: translateY(26px) scale(0.6);
+}
+html[lang='en'] .intro-quote { font-family: var(--serif); font-style: italic; font-size: 21px; line-height: 1.3; }
+.intro-quote .q-mark { position: absolute; top: -18px; inset-inline-start: 12px; font-family: var(--serif); font-size: 48px; line-height: 1; color: var(--gold); }
+@keyframes popOut { 0% { opacity: 0; transform: translateY(26px) scale(0.6); } 60% { opacity: 1; transform: translateY(-10px) scale(1.12); } 100% { opacity: 1; transform: translateY(-6px) scale(1.06); } }
+.intro.quote-in .intro-quote { animation: popOut 0.75s var(--ease) both; }
+.intro.quote-in .intro-write::after { display: none; }
+/* the home line in the same hand */
+html[lang='fa'] .hope { font-family: 'Afsaneh', Vazirmatn, serif; font-size: 22px; line-height: 1.6; }

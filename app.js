@@ -230,7 +230,7 @@
     document.documentElement.lang = l;
     document.documentElement.dir = l === 'fa' ? 'rtl' : 'ltr';
     document.title = t('appName');
-    const pref = S.settings.theme || 'auto';
+    const pref = S.settings.theme || 'light';
     const h = new Date().getHours();
     const theme = pref === 'auto' ? (h >= 7 && h < 19 ? 'light' : 'dark') : pref;
     document.documentElement.dataset.theme = theme;
@@ -353,13 +353,19 @@
     const wrap = document.createElement('div');
     wrap.className = 'intro';
     wrap.setAttribute('aria-hidden', 'true');
+    const hopes = (window.HOPE && window.HOPE[lang()]) || [];
+    if (S.hopeIndex === undefined && hopes.length) {
+      const now = new Date();
+      S.hopeIndex = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000) % hopes.length;
+    }
+    const quote = hopes.length ? hopes[S.hopeIndex % hopes.length] : '';
     wrap.innerHTML = '<div class="intro-book"><div class="intro-page"><span class="eyebrow">' + esc(fmtCal(new Date(), defaultCal(), { weekday: 'long', day: 'numeric', month: 'long' })) + '</span>' +
-      '<div class="intro-write" dir="auto"></div></div>' +
+      '<div class="intro-write" dir="auto"></div>' +
+      '<div class="intro-quote" dir="auto"><span class="q-mark" aria-hidden="true">“</span>' + esc(quote) + '</div></div>' +
       '<div class="intro-cover">' + coverHtml(true) + '</div></div><span class="intro-skip">' + esc(t('tapToSkip')) + '</span>';
     document.body.appendChild(wrap);
     const target = wrap.querySelector('.intro-write');
-    const text = t('introLine');
-    const words = text.split(' ');
+    const words = t('introLine').split(' ');
     let i = 0;
     let typer = null;
     const timers = [];
@@ -375,8 +381,13 @@
       typer = setInterval(() => {
         i++;
         target.textContent = words.slice(0, i).join(' ');
-        if (i >= words.length) { clearInterval(typer); timers.push(setTimeout(finish, 1300)); }
-      }, 170);
+        if (i >= words.length) {
+          clearInterval(typer);
+          // Then the day's line jumps out of the page.
+          timers.push(setTimeout(() => wrap.classList.add('quote-in'), 350));
+          timers.push(setTimeout(finish, 3600));
+        }
+      }, 190);
     }, 1700));
   }
 
@@ -424,6 +435,11 @@
       '<span class="hope-mark" aria-hidden="true">“</span><span data-hope>' + esc(list[S.hopeIndex % list.length]) + '</span></button>';
   }
 
+  // Personal AR logo in a navy-and-gold ring. Uses icons/ar-logo.png when present.
+  function badgeHtml() {
+    return '<span class="badge" aria-hidden="true">' + (S.hasLogo ? '<img src="icons/ar-logo.png" alt="">' : '<span class="ar">A<i>R</i></span>') + '</span>';
+  }
+
   function dock(active) {
     return '<nav class="dock" aria-label="' + esc(t('appName')) + '">' +
       '<button class="dock-item' + (active === 'contents' ? ' on' : '') + '" data-act="contents">' + I.book + '<span>' + esc(t('contents')) + '</span></button>' +
@@ -436,7 +452,7 @@
     const ch = currentChapter();
     const memory = onThisDay();
     return '<section class="screen with-dock">' +
-      '<div class="topbar"><div class="brand"><span class="word"><i>A</i>loud</span></div>' +
+      '<div class="topbar"><div class="brand-row">' + badgeHtml() + '<span class="brand-name"><b>' + esc(t('appTitle')) + '</b><span>' + esc(t('appSub')) + '</span></span></div>' +
       '<div class="card-row">' + langPill() +
       '<button class="iconbtn" data-act="settings" aria-label="' + esc(t('settings')) + '">' + I.gear + '</button></div></div>' +
       todayCard() +
@@ -958,7 +974,7 @@
 
   // ----- settings
   function openSettings() {
-    const th = S.settings.theme || 'auto';
+    const th = S.settings.theme || 'light';
     openSheet(
       '<h2>' + esc(t('settings')) + '</h2>' +
       '<div class="field"><label for="setname">' + esc(t('whose')) + '</label>' +
@@ -1290,6 +1306,7 @@
 
   // ---------------------------------------------------------------- start
   async function boot() {
+    try { S.hasLogo = (await fetch('icons/ar-logo.png', { method: 'HEAD' })).ok; } catch (e) { S.hasLogo = false; }
     try { await loadState(); } catch (e) {
       console.error(e);
       app.innerHTML = '<section class="screen center"><div class="grow"></div><p>' + esc(t('noStorage')) + '</p><div class="grow"></div></section>';

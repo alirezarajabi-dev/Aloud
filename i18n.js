@@ -103,6 +103,8 @@ window.I18N = {
     lastBackup: 'آخرین پشتیبان: {d}',
     saveFailed: 'ذخیره نشد. دوباره امتحان کن.',
     noStorage: 'این مرورگر اجازه‌ی ذخیره‌سازی نمی‌دهد. اگر در حالت خصوصی (Private) هستی، از حالت عادی Safari باز کن.',
+    appTitle: 'روزنگار',
+    appSub: 'Aloud · علیرضا رجبی',
     calendar: 'تقویم',
     recordShort: 'ضبط',
     anotherLine: 'جمله‌ای دیگر',
@@ -112,7 +114,7 @@ window.I18N = {
     solar: 'شمسی',
     gregorian: 'میلادی',
     tapToSkip: 'برای رد شدن لمس کن',
-    introLine: 'امروز را بگو؛ روزت را با صدای خودت بنویس.',
+    introLine: 'اینجا روزت را بگو و یادداشتش کن.',
     defaultChapter: 'فصل اول'
   },
   en: {
@@ -217,6 +219,8 @@ window.I18N = {
     lastBackup: 'last backup {d}',
     saveFailed: 'Could not save. Try again.',
     noStorage: 'This browser does not allow storage. If you are in Private mode, open it in normal Safari.',
+    appTitle: 'Aloud',
+    appSub: 'Voice journal · Alireza Rajabi',
     calendar: 'Calendar',
     recordShort: 'Record',
     anotherLine: 'Another line',
@@ -226,7 +230,7 @@ window.I18N = {
     solar: 'Solar Hijri',
     gregorian: 'Gregorian',
     tapToSkip: 'TAP TO SKIP',
-    introLine: 'Tell me about today. Write your day in your own voice.',
+    introLine: 'Here, tell your day and keep it.',
     defaultChapter: 'Chapter One'
   }
 };
