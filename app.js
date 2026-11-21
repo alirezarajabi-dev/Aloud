@@ -315,13 +315,20 @@
     const meta = S.entries.length
       ? chaptersPagesText(S.chapters.length, S.entries.length)
       : t('noPagesYet');
+    const photo = S.coverUrl
+      ? '<span class="cover-photo"><img src="' + S.coverUrl + '" alt=""></span>'
+      : (small ? '<img class="orn-med" src="orn/medallion.svg" alt="" aria-hidden="true">'
+        : '<span class="cover-photo empty"><span class="ph">' + I.camera + '<span>' + esc(t('addCoverPhotoShort')) + '</span></span></span>');
+    const photoSlot = small ? photo
+      : '<label class="photo-slot" for="coverfile-home" data-no-act aria-label="' + esc(S.coverUrl ? t('changePhoto') : t('addCoverPhoto')) + '">' + photo + '</label>';
     const inner = spineHtml() + '<div class="frame" aria-hidden="true"></div>' + cornersHtml() +
       '<span class="vol">' + esc(t('notebookOne')) + '</span>' +
-      '<span class="title">' + (S.coverUrl ? '<span class="cover-photo"><img src="' + S.coverUrl + '" alt=""></span>' : '<img class="orn-med" src="orn/medallion.svg" alt="" aria-hidden="true">') +
+      '<span class="title">' + photoSlot +
       '<span class="t1">' + esc(t('journalOf')) + '</span><span class="t2" data-cover-name>' + esc(name) + '</span></span>' +
       '<span class="meta">' + esc(meta) + '</span>';
     if (small) return '<div class="cover small" aria-hidden="true">' + inner + '</div>';
-    return '<button class="cover" data-act="contents" aria-label="' + esc(t('contents')) + '">' + inner + '</button>';
+    // A div (not a button) so the photo circle inside it can be its own tap target.
+    return '<div class="cover" data-act="contents" role="link" tabindex="0" aria-label="' + esc(t('contents')) + '">' + inner + '</div>';
   }
 
   function langPill() {
@@ -424,35 +431,46 @@
     return hopes[S.hopeIndex % hopes.length];
   }
 
-  // ----- opening: the journal opens; tap to reveal today's line
+  // ----- opening: the journal opens; tap to reveal today's line; then the cover closes with your photo on it
   function playIntro() {
     if (S.introPlayed) return;
     S.introPlayed = true;
     const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const quote = todayHope();
     const wrap = document.createElement('div');
-    wrap.className = 'intro' + (calm ? ' calm open' : '');
+    wrap.className = 'intro';
     wrap.setAttribute('role', 'dialog');
     wrap.setAttribute('aria-label', t('todaysLine'));
     let sparks = '';
     for (let i = 0; i < 16; i++) sparks += '<span class="spark" aria-hidden="true">' + I.spark + '</span>';
-    const words = quote.split(' ').map((w, i) => '<span class="w" data-i="' + i + '">' + esc(w) + '</span>').join(' ');
+    const words = quote.split(' ').map((w) => '<span class="w">' + esc(w) + '</span>').join(' ');
     wrap.innerHTML = '<div class="intro-book"><div class="intro-page">' + cornersHtml() +
       '<img class="orn-head" src="orn/headpiece.svg" alt="" aria-hidden="true"><span class="eyebrow">' + esc(fmtCal(new Date(), defaultCal(), { weekday: 'long', day: 'numeric', month: 'long' })) + '</span>' +
-      '<button class="reveal-btn" data-reveal>' + I.spark + '<span>' + esc(t('revealLine')) + '</span></button>' +
+      '<button type="button" class="reveal-btn" data-reveal>' + I.spark + '<span>' + esc(t('revealLine')) + '</span></button>' +
       '<div class="intro-quote" dir="auto">' + sparks + '<span class="q-mark" aria-hidden="true">“</span><span class="q-text">' + words + '</span></div>' +
-      '<button class="btn btn-primary intro-go" data-go>' + esc(t('startJournal')) + '</button></div>' +
+      '<button type="button" class="btn btn-primary intro-go" data-go>' + esc(t('startJournal')) + '</button></div>' +
       '<div class="intro-cover">' + coverHtml(true) + '</div></div>' +
-      '<button class="intro-skip" data-go>' + esc(t('skip')) + '</button>';
+      '<button type="button" class="intro-skip" data-skip>' + esc(t('skip')) + '</button>';
     document.body.appendChild(wrap);
     const timers = [];
-    const finish = () => {
+    let closing = false;
+    const leave = () => {
       timers.forEach(clearTimeout);
-      try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
       wrap.classList.add('out');
       setTimeout(() => wrap.remove(), 650);
     };
-    // Place the sparkles at random around the line.
+    // The cover swings shut again; your photo shines on it; then the app opens.
+    const closeBook = () => {
+      if (closing) return;
+      closing = true;
+      timers.forEach(clearTimeout);
+      try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+      if (calm) { leave(); return; }
+      wrap.classList.remove('open');
+      wrap.classList.add('closing');
+      timers.push(setTimeout(() => wrap.classList.add('shine'), 1250));
+      timers.push(setTimeout(leave, 2700));
+    };
     wrap.querySelectorAll('.spark').forEach((sp) => {
       sp.style.left = (5 + Math.random() * 90) + '%';
       sp.style.top = (-15 + Math.random() * 130) + '%';
@@ -460,16 +478,26 @@
       sp.style.setProperty('--s', (0.5 + Math.random() * 0.9).toFixed(2));
     });
     const reveal = () => {
-      if (wrap.classList.contains('revealed')) return;
+      if (wrap.classList.contains('revealed') || closing) return;
       wrap.classList.add('revealed');
       wrap.querySelectorAll('.q-text .w').forEach((w, i) => { w.style.animationDelay = (0.35 + i * 0.16).toFixed(2) + 's'; });
       speak(quote);
       const n = quote.split(' ').length;
-      timers.push(setTimeout(() => wrap.classList.add('settled'), 600 + n * 160 + 900));
+      const shown = 600 + n * 160 + 900;
+      timers.push(setTimeout(() => wrap.classList.add('settled'), shown));
+      // Give time to read, then close the book by itself.
+      timers.push(setTimeout(closeBook, shown + 4200));
     };
-    wrap.querySelector('[data-reveal]').addEventListener('click', (e) => { e.stopPropagation(); reveal(); });
-    wrap.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); finish(); }));
-    if (!calm) timers.push(setTimeout(() => wrap.classList.add('open'), 750));
+    // Tap anywhere on the page (not only the words) to reveal; iPhone Safari is picky about small targets.
+    const page = wrap.querySelector('.intro-page');
+    page.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (e.target.closest('[data-go]')) { closeBook(); return; }
+      reveal();
+    });
+    wrap.querySelector('[data-skip]').addEventListener('click', (e) => { e.stopPropagation(); closing = true; leave(); });
+    if (calm) wrap.classList.add('open', 'calm');
+    else timers.push(setTimeout(() => wrap.classList.add('open'), 750));
     timers.push(setTimeout(() => wrap.classList.add('ready'), calm ? 0 : 1900));
   }
 
@@ -537,8 +565,8 @@
       hopeLine() +
       backupBanner() +
       '<div class="cover-wrap">' + coverHtml(false) + '</div>' +
-      '<div class="cover-tools"><label class="chip" for="coverfile-home">' + I.camera + esc(S.coverUrl ? t('changePhoto') : t('addCoverPhoto')) + '</label>' +
-      '<input id="coverfile-home" class="sr-only" type="file" accept="image/*" data-cover-photo></div>' +
+      // Kept visually hidden (not display:none) so iPhone Safari still opens it from the photo circle.
+      '<input id="coverfile-home" class="sr-only" type="file" accept="image/*" data-cover-photo>' +
       (ch ? '<div class="card card-row"><button class="linklike grow" data-act="contents"><span class="label">' + esc(t('currentChapter')) + '</span>' +
         '<span class="card-row"><span class="value grow" dir="auto">' + esc(chTitle(ch)) + '</span><span class="muted small">' +
         esc(pagesText(entriesOf(ch.id).length)) + '</span></span></button>' +
@@ -1461,6 +1489,7 @@
   };
 
   document.addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-no-act]')) return; // e.g. the photo circle on the cover opens the photo picker
     const el = ev.target.closest('[data-act]');
     if (el && actions[el.dataset.act]) { ev.preventDefault(); actions[el.dataset.act](el); return; }
     // Tapping the dimmed area closes a sheet, except the save sheet, which must be answered.
@@ -1468,6 +1497,7 @@
   });
 
   document.addEventListener('keydown', (ev) => {
+    if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('div.cover[data-act]')) { ev.preventDefault(); actions.contents(); return; }
     if (ev.key === 'Escape' && sheetRoot.firstChild && !saving) closeSheet();
   });
 

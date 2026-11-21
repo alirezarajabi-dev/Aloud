@@ -633,3 +633,26 @@ html[lang='en'] .reveal-btn { font-family: var(--hand-en); font-size: 25px; }
   .reveal-btn { opacity: 1 !important; transform: none !important; }
 }
 .intro.revealed .intro-quote { opacity: 1; transform: none; }
+
+
+/* ================= v9: photo circle on the cover; reliable tap; closing motion ================= */
+div.cover { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.photo-slot { display: block; cursor: pointer; position: relative; z-index: 2; -webkit-tap-highlight-color: transparent; }
+.cover-photo.empty { display: flex; align-items: center; justify-content: center; }
+.cover-photo.empty .ph { width: 100%; height: 100%; border-radius: 50%; background: #0C1B2E; border: 2px dashed rgba(243, 199, 106, 0.8);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #F3C76A; font-size: 12px; box-sizing: border-box; }
+.cover-photo.empty .ph svg { width: 26px; height: 26px; }
+.photo-slot:active .cover-photo { transform: scale(0.96); }
+.cover-tools { display: none; }
+
+/* make sure taps reach the page once the cover is open (Safari hit-tests 3D layers oddly) */
+.intro.open .intro-cover { pointer-events: none; }
+.intro-page { cursor: pointer; transform: translateZ(1px); -webkit-transform: translateZ(1px); }
+.intro.closing .intro-cover { transform: none !important; transition: transform 1.2s var(--ease); }
+.intro.closing .intro-page .intro-quote, .intro.closing .intro-go { transition: opacity 0.4s; opacity: 0; }
+.intro.shine .intro-cover .cover-photo { animation: photoShine 1.3s var(--ease) both; }
+.intro.shine .intro-cover .cover { box-shadow: var(--shadow), 0 0 50px 10px rgba(254, 191, 23, 0.45); transition: box-shadow 0.8s; }
+@keyframes photoShine { 0% { transform: scale(1); box-shadow: 0 0 0 2px #0C1B2E, 0 0 0 0 rgba(254, 191, 23, 0.9); } 50% { transform: scale(1.12); box-shadow: 0 0 0 2px #0C1B2E, 0 0 36px 14px rgba(254, 191, 23, 0.75); } 100% { transform: scale(1); box-shadow: 0 0 0 2px #0C1B2E, 0 10px 24px rgba(0, 0, 0, 0.35); } }
+.intro.calm .intro-cover { display: none; }
+/* the cover inside the opening book must fit the book exactly (".cover" resets box-sizing) */
+.intro-cover .cover { box-sizing: border-box; width: 100%; height: 100%; }
