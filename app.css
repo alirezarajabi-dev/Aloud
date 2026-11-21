@@ -457,3 +457,36 @@ html[lang='en'] .intro-quote { font-family: var(--serif); font-style: italic; fo
 .intro.quote-in .intro-write::after { display: none; }
 /* the home line in the same hand */
 html[lang='fa'] .hope { font-family: 'Afsaneh', Vazirmatn, serif; font-size: 22px; line-height: 1.6; }
+
+
+/* ================= v4: Bizkonic yellow frame around the whole app ================= */
+:root { --frame: 6px; --hand-en: 'Kaushan Script', var(--serif); }
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: 100; pointer-events: none;
+  border: var(--frame) solid var(--gold);
+  box-shadow: inset 0 0 0 1.5px var(--navy);
+}
+.screen { padding-left: calc(20px + var(--frame)); padding-right: calc(20px + var(--frame)); padding-top: calc(env(safe-area-inset-top) + 20px + var(--frame)); }
+.dock { bottom: calc(env(safe-area-inset-bottom) + 12px + var(--frame)); width: min(440px, calc(100% - 24px - 2 * var(--frame))); }
+.sheet { border-top: 3px solid var(--gold); }
+.badge { border-color: var(--navy); }
+.eyebrow::before { background: var(--gold); }
+.today-second { color: var(--gold); }
+.today .eyebrow::before { background: var(--gold); }
+.hope-mark { color: var(--gold); }
+.dock-rec-btn { background: var(--gold); color: var(--navy); box-shadow: inset 0 0 0 2px rgba(12, 27, 46, 0.15); }
+.dock-rec { color: var(--navy); }
+html[data-theme='dark'] .dock-rec { color: var(--gold); }
+.cal-cell .dot { background: var(--gold); }
+.cal-cell.today-cell { border-color: var(--gold); }
+.page-row .t.untitled { color: var(--copper-dark); }
+
+/* English: a brush hand that matches the Persian cover font (Afsaneh) */
+html[lang='en'] .cover .t1, html[lang='en'] .cover .t2 { font-family: var(--hand-en), 'Afsaneh'; font-style: normal; font-weight: 400; }
+html[lang='en'] .cover .t1 { font-size: 24px; line-height: 1.3; color: var(--copper); }
+html[lang='en'] .cover .t2 { font-size: 48px; line-height: 1.2; }
+html[lang='en'] .intro-cover .cover .t2 { font-size: 48px; }
+html[lang='en'] .intro-write { font-family: var(--hand-en); font-style: normal; font-size: 30px; line-height: 1.3; }
+html[lang='en'] .intro-quote { font-family: var(--hand-en); font-style: normal; font-size: 21px; line-height: 1.35; }
+html[lang='en'] .hope { font-family: var(--hand-en); font-style: normal; font-size: 21px; line-height: 1.4; }
+html[lang='en'] .hero-title { font-family: var(--hand-en); font-style: normal; }

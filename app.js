@@ -143,15 +143,20 @@
     await DB.put('kv', S.settings, 'settings');
   }
 
-  async function createChapter(title) {
-    const ch = { id: newId(), title: String(title).trim().slice(0, 120), createdAt: nowIso() };
+  // Chapters the app makes by itself follow the interface language; chapters you name keep your words.
+  const AUTO_TITLES = ['فصل اول', 'Chapter One'];
+  const isAutoChapter = (ch) => !!ch && (ch.auto === true || (ch.auto === undefined && AUTO_TITLES.includes(ch.title)));
+  const chTitle = (ch) => (!ch ? '' : isAutoChapter(ch) ? t('defaultChapter') : ch.title);
+
+  async function createChapter(title, auto) {
+    const ch = { id: newId(), title: String(title).trim().slice(0, 120), auto: !!auto, createdAt: nowIso() };
     await DB.put('chapters', ch);
     S.chapters.push(ch);
     return ch;
   }
 
   async function ensureChapter() {
-    return currentChapter() || createChapter(t('defaultChapter'));
+    return currentChapter() || createChapter(t('defaultChapter'), true);
   }
 
   // Saves the page and its sound in one step: either both are stored or neither is.
@@ -263,7 +268,7 @@
   }
 
   function coverHtml(small) {
-    const name = S.settings.name || t('yourName');
+    const name = (lang() === 'en' && S.settings.nameEn) || S.settings.name || t('yourName');
     const meta = S.entries.length
       ? chaptersPagesText(S.chapters.length, S.entries.length)
       : t('noPagesYet');
@@ -460,7 +465,7 @@
       backupBanner() +
       '<div class="cover-wrap">' + coverHtml(false) + '</div>' +
       (ch ? '<div class="card"><button class="linklike" data-act="contents"><span class="label">' + esc(t('currentChapter')) + '</span>' +
-        '<span class="card-row"><span class="value grow">' + esc(ch.title) + '</span><span class="muted small">' +
+        '<span class="card-row"><span class="value grow">' + esc(chTitle(ch)) + '</span><span class="muted small">' +
         esc(pagesText(entriesOf(ch.id).length)) + '</span></span></button></div>' : '') +
       (memory ? '<div class="card card-row"><button class="iconbtn" data-act="play" data-id="' + esc(memory.e.id) + '" aria-label="' + esc(entryTitle(memory.e)) + '">' + I.play + '</button>' +
         '<span><span class="label">' + esc(t('onThisDay', { when: memory.when })) + '</span><br><span>' + esc(entryTitle(memory.e)) + '</span></span></div>' : '') +
@@ -537,7 +542,7 @@
       }
       return '<div class="card chapter' + (open ? ' card-accent' : '') + '">' +
         '<button class="chapter-head" data-act="toggle-chapter" data-id="' + esc(ch.id) + '" aria-expanded="' + open + '">' +
-        '<span class="row1"><span class="name">' + esc(ch.title) + '</span><span class="muted tiny">' + esc(range + pagesText(list.length)) + '</span></span>' +
+        '<span class="row1"><span class="name" dir="auto">' + esc(chTitle(ch)) + '</span><span class="muted tiny">' + esc(range + pagesText(list.length)) + '</span></span>' +
         '<span class="moodbar" aria-hidden="true">' + list.slice(-12).map((e) => '<span class="' + moodClass(e.mood) + '"></span>').join('') + '</span>' +
         '</button>' + body + '</div>';
     }).join('');
@@ -554,7 +559,7 @@
     const ch = currentChapter();
     const pageNo = S.entries.length + 1;
     return '<section class="screen">' +
-      '<div class="rec-head"><span class="ch">' + esc(ch ? ch.title : '') + '</span>' +
+      '<div class="rec-head"><span class="ch" dir="auto">' + esc(chTitle(ch)) + '</span>' +
       '<span class="pg">' + esc(t('pageN', { n: num(pageNo) })) + '</span>' +
       '<span class="muted small">' + esc(fmtLong(Rec.startedAt || new Date().toISOString())) + '</span></div>' +
       '<div class="grow"></div>' +
@@ -768,7 +773,7 @@
   }
 
   function chapterChips(selectedId) {
-    return '<div class="chips">' + orderedChapters().map((c) => '<button type="button" class="chip" data-act="pick-chapter" data-id="' + esc(c.id) + '" aria-pressed="' + (c.id === selectedId) + '">' + esc(c.title) + '</button>').join('') +
+    return '<div class="chips">' + orderedChapters().map((c) => '<button type="button" class="chip" data-act="pick-chapter" data-id="' + esc(c.id) + '" aria-pressed="' + (c.id === selectedId) + '" dir="auto">' + esc(chTitle(c)) + '</button>').join('') +
       '<button type="button" class="chip" data-act="pick-chapter" data-id="__new" aria-pressed="' + (selectedId === '__new') + '">' + esc(t('newChapter')) + '</button></div>' +
       '<div class="field" data-newch ' + (selectedId === '__new' ? '' : 'hidden') + '><label class="sr-only" for="newch">' + esc(t('newChapterName')) + '</label>' +
       '<input id="newch" type="text" maxlength="120" placeholder="' + esc(t('newChapterName')) + '"></div>';
@@ -872,7 +877,7 @@
     const marks = (entry.bookmarks || []).map((s) => '<button class="chip" data-act="seek-to" data-sec="' + s + '">' + I.markFill + esc(fmtClock(s)) + '</button>').join('');
     const ch = S.chapters.find((c) => c.id === entry.chapterId);
     openSheet(
-      '<div><span class="muted small">' + esc(ch ? ch.title : '') + '</span>' +
+      '<div><span class="muted small" dir="auto">' + esc(chTitle(ch)) + '</span>' +
       '<h2 class="player-title" dir="auto">' + esc(entryTitle(entry)) + '</h2>' +
       '<span class="muted small">' + esc(fmtLong(entry.startedAt) + SEP() + fmtDate(entry.startedAt, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span></div>' +
       '<div><input class="seek" type="range" min="0" max="1000" value="0" step="1" data-seek aria-label="seek">' +
@@ -966,7 +971,7 @@
       '<h2>' + esc(ch ? t('renameChapter') : t('newChapterName')) + '</h2>' +
       '<form class="field" data-form="chapter" data-id="' + esc(ch ? ch.id : '') + '">' +
       '<label class="sr-only" for="chname">' + esc(t('newChapterName')) + '</label>' +
-      '<input id="chname" type="text" maxlength="120" required value="' + esc(ch ? ch.title : '') + '" autofocus>' +
+      '<input id="chname" type="text" maxlength="120" required value="' + esc(chTitle(ch)) + '" autofocus>' +
       '<div class="btn-row"><button class="btn btn-primary" type="submit">' + esc(t('done')) + '</button>' +
       '<button class="btn btn-ghost" type="button" data-act="close-sheet">' + esc(t('close')) + '</button></div></form>'
     );
@@ -979,6 +984,9 @@
       '<h2>' + esc(t('settings')) + '</h2>' +
       '<div class="field"><label for="setname">' + esc(t('whose')) + '</label>' +
       '<input id="setname" type="text" maxlength="60" value="' + esc(S.settings.name || '') + '"></div>' +
+      '<div class="field"><label for="setnameen">' + esc(t('nameEnLabel')) + '</label>' +
+      '<input id="setnameen" type="text" maxlength="60" dir="ltr" autocomplete="off" placeholder="Alireza" value="' + esc(S.settings.nameEn || '') + '">' +
+      '<span class="muted tiny">' + esc(t('nameEnHint')) + '</span></div>' +
       '<div class="field"><span class="label">' + esc(t('language')) + '</span><div class="seg">' +
       '<button data-act="set-lang" data-lang="fa" aria-pressed="' + (lang() === 'fa') + '">فارسی</button>' +
       '<button data-act="set-lang" data-lang="en" aria-pressed="' + (lang() === 'en') + '">English</button></div></div>' +
@@ -1221,14 +1229,18 @@
       el.disabled = true;
       try {
         await putSettings({ name, lang: lang() });
-        if (!S.chapters.length) await createChapter(t('defaultChapter'));
+        if (!S.chapters.length) await createChapter(t('defaultChapter'), true);
         S.view = 'home'; render(); playIntro();
         askPersistence();
       } catch (e) { el.disabled = false; toast(t('saveFailed')); }
     },
     'save-settings': async () => {
       const name = (sheet().querySelector('#setname').value || '').trim();
-      if (name && name !== S.settings.name) await safe(putSettings({ name }));
+      const nameEn = (sheet().querySelector('#setnameen').value || '').trim().slice(0, 60);
+      const patch = {};
+      if (name && name !== S.settings.name) patch.name = name;
+      if (nameEn !== (S.settings.nameEn || '')) patch.nameEn = nameEn;
+      if (Object.keys(patch).length) await safe(putSettings(patch));
       closeSheet(); render();
     },
     'toggle-chapter': (el) => { S.openChapter = S.openChapter === el.dataset.id ? null : el.dataset.id; render(); },
@@ -1295,7 +1307,7 @@
       try {
         if (form.dataset.id) {
           const ch = S.chapters.find((c) => c.id === form.dataset.id);
-          if (ch) { ch.title = title.slice(0, 120); await DB.put('chapters', ch); }
+          if (ch) { ch.title = title.slice(0, 120); ch.auto = false; await DB.put('chapters', ch); }
         } else {
           S.openChapter = (await createChapter(title)).id;
         }
