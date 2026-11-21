@@ -490,3 +490,14 @@ html[lang='en'] .intro-write { font-family: var(--hand-en); font-style: normal; 
 html[lang='en'] .intro-quote { font-family: var(--hand-en); font-style: normal; font-size: 21px; line-height: 1.35; }
 html[lang='en'] .hope { font-family: var(--hand-en); font-style: normal; font-size: 21px; line-height: 1.4; }
 html[lang='en'] .hero-title { font-family: var(--hand-en); font-style: normal; }
+
+/* ================= v5 frame: wide navy band, thin yellow line, rounded corners ================= */
+:root { --frame: 12px; --frame-radius: 38px; }
+body::before {
+  content: ''; position: fixed; z-index: 100; pointer-events: none;
+  inset: var(--frame);
+  border: 2px solid var(--gold);
+  border-radius: var(--frame-radius);
+  /* the navy band fills everything outside the rounded yellow line */
+  box-shadow: 0 0 0 220px var(--navy);
+}

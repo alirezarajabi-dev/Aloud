@@ -240,7 +240,7 @@
     const theme = pref === 'auto' ? (h >= 7 && h < 19 ? 'light' : 'dark') : pref;
     document.documentElement.dataset.theme = theme;
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = theme === 'light' ? '#F7F4EE' : '#142C2B';
+    if (meta) meta.content = '#0C1B2E'; // matches the navy frame
   }
 
   // The current chapter is the one holding the latest recording, unless a newer, still-empty
