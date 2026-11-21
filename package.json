@@ -1,0 +1,7 @@
+{
+  "name": "aloud",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aloud — a private voice journal that keeps recordings on your own phone.",
+  "scripts": { "test": "node --test" }
+}
