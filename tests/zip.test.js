@@ -43,3 +43,30 @@ test('damaged data is detected', () => {
   assert.throws(() => RZip.unzip(new Uint8Array(buf)), /crc_mismatch/);
   assert.throws(() => RZip.unzip(new Uint8Array([1, 2, 3])), /not_a_zip/);
 });
+
+test('reads a compressed zip (like a folder zipped in the Files app) entry by entry', async (t) => {
+  let made = true;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aloud-dz-'));
+  const zipPath = path.join(dir, 'folder.zip');
+  try {
+    execFileSync('python3', ['-I', '-c', [
+      'import zipfile,sys',
+      'z=zipfile.ZipFile(sys.argv[1],"w",zipfile.ZIP_DEFLATED)',
+      'z.writestr("Just Press Record/2026-07-16/10-30-00.m4a", bytes(range(256))*400)',
+      'z.writestr("Just Press Record/2026-07-18/21-05-10.m4a", b"hello"*1000)',
+      'z.writestr("__MACOSX/._x", b"junk")',
+      'z.close()'
+    ].join('\n'), zipPath]);
+  } catch (e) { made = false; }
+  if (!made) return t.skip('python3 not available');
+  const file = new Blob([fs.readFileSync(zipPath)]);
+  const entries = await RZip.blobEntries(file);
+  const a = entries.find((e) => e.name.endsWith('10-30-00.m4a'));
+  assert.ok(a, 'entry found');
+  assert.strictEqual(a.method, 8);
+  const blob = await a.blob('audio/mp4');
+  assert.strictEqual(blob.size, 256 * 400);
+  assert.strictEqual(blob.type, 'audio/mp4');
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  assert.strictEqual(bytes[257], 1);
+});

@@ -74,6 +74,9 @@
     markFill: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
     book: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 7h6"/></svg>',
     cal: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+    pen: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
+    stop: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
+    close: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     rew: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
     fwd: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>'
   };
@@ -303,6 +306,7 @@
     else if (v === 'recorder') { app.innerHTML = viewRecorder(); Rec.bindView(); }
     const focus = app.querySelector('[autofocus]');
     if (focus) focus.focus();
+    renderMini();
     clearInterval(S.clockTimer);
     if (v === 'home') {
       S.clockTimer = setInterval(() => {
@@ -471,9 +475,10 @@
       hopeLine() +
       backupBanner() +
       '<div class="cover-wrap">' + coverHtml(false) + '</div>' +
-      (ch ? '<div class="card"><button class="linklike" data-act="contents"><span class="label">' + esc(t('currentChapter')) + '</span>' +
-        '<span class="card-row"><span class="value grow">' + esc(chTitle(ch)) + '</span><span class="muted small">' +
-        esc(pagesText(entriesOf(ch.id).length)) + '</span></span></button></div>' : '') +
+      (ch ? '<div class="card card-row"><button class="linklike grow" data-act="contents"><span class="label">' + esc(t('currentChapter')) + '</span>' +
+        '<span class="card-row"><span class="value grow" dir="auto">' + esc(chTitle(ch)) + '</span><span class="muted small">' +
+        esc(pagesText(entriesOf(ch.id).length)) + '</span></span></button>' +
+        '<button class="row-edit" data-act="rename-chapter" data-id="' + esc(ch.id) + '" aria-label="' + esc(t('renameChapter')) + '">' + I.pen + '</button></div>' : '') +
       (memory ? '<div class="card card-row"><button class="iconbtn" data-act="play" data-id="' + esc(memory.e.id) + '" aria-label="' + esc(entryTitle(memory.e)) + '">' + I.play + '</button>' +
         '<span><span class="label">' + esc(t('onThisDay', { when: memory.when })) + '</span><br><span>' + esc(entryTitle(memory.e)) + '</span></span></div>' : '') +
       '</section>' + dock('home');
@@ -538,20 +543,22 @@
       if (open) {
         body = '<div class="chapter-body"><div class="chapter-tools">' +
           (list.length ? '<button class="chip chip-accent" data-act="play-chapter" data-id="' + esc(ch.id) + '">' + I.play + esc(t('playChapter')) + '</button>' : '') +
-          '<button class="chip" data-act="rename-chapter" data-id="' + esc(ch.id) + '">' + esc(t('renameChapter')) + '</button></div>' +
-          (list.length ? list.map((e) => '<button class="page-row' + (S.playingId === e.id ? ' playing' : '') + '" data-act="play" data-id="' + esc(e.id) + '">' +
+          '<button class="chip" data-act="rename-chapter" data-id="' + esc(ch.id) + '">' + I.pen + esc(t('renameChapter')) + '</button>' +
+          (list.length ? '' : '<button class="chip" data-act="delete-chapter" data-id="' + esc(ch.id) + '">' + esc(t('deleteChapter')) + '</button>') + '</div>' +
+          (list.length ? list.map((e) => '<div class="page-line' + (S.playingId === e.id ? ' playing' : '') + '">' +
+            '<button class="page-row" data-act="play" data-id="' + esc(e.id) + '">' +
             '<span class="bar ' + moodClass(e.mood) + '"></span>' +
             '<span class="txt"><span dir="auto" class="t' + (e.title ? '' : ' untitled') + '">' + esc(e.title || t('untitled') + ' — ' + t('addTitle')) + '</span>' +
-            '<span class="d">' + esc(fmtDayTime(e.startedAt)) + '</span></span>' +
-            '<span class="len">' + esc(fmtLen(e.durationSec)) + '</span></button>').join('')
+            '<span class="d">' + esc(fmtDayTime(e.startedAt)) + SEP() + esc(fmtLen(e.durationSec)) + '</span></span></button>' +
+            '<button class="row-edit" data-act="edit-entry" data-id="' + esc(e.id) + '" aria-label="' + esc(t('edit')) + '">' + I.pen + '</button></div>').join('')
             : '<div class="empty">' + esc(t('noPagesYet')) + '</div>') +
           '</div>';
       }
-      return '<div class="card chapter' + (open ? ' card-accent' : '') + '">' +
+      return '<div class="card chapter' + (open ? ' card-accent' : '') + '"><div class="chapter-top">' +
         '<button class="chapter-head" data-act="toggle-chapter" data-id="' + esc(ch.id) + '" aria-expanded="' + open + '">' +
         '<span class="row1"><span class="name" dir="auto">' + esc(chTitle(ch)) + '</span><span class="muted tiny">' + esc(range + pagesText(list.length)) + '</span></span>' +
         '<span class="moodbar" aria-hidden="true">' + list.slice(-12).map((e) => '<span class="' + moodClass(e.mood) + '"></span>').join('') + '</span>' +
-        '</button>' + body + '</div>';
+        '</button><button class="row-edit" data-act="rename-chapter" data-id="' + esc(ch.id) + '" aria-label="' + esc(t('renameChapter')) + '">' + I.pen + '</button></div>' + body + '</div>';
     }).join('');
     return '<section class="screen with-dock">' +
       '<div class="topbar"><button class="iconbtn flip-rtl" data-act="home" aria-label="' + esc(t('back')) + '">' + I.back + '</button>' +
@@ -896,7 +903,9 @@
       '<div class="field"><span class="label">' + esc(t('speed')) + '</span><div class="chips">' +
       [1, 1.25, 1.5, 2].map((r) => '<button class="chip" data-act="rate" data-rate="' + r + '" aria-pressed="' + (audio.playbackRate === r) + '">' + esc(num(r)) + '×</button>').join('') + '</div></div>' +
       (marks ? '<div class="field"><span class="label">' + esc(t('bookmarks')) + '</span><div class="chips">' + marks + '</div></div>' : '') +
-      '<div class="btn-row"><button class="btn btn-ghost" data-act="edit-entry" data-id="' + esc(entry.id) + '">' + esc(t('edit')) + '</button>' +
+      '<div class="btn-row"><button class="btn btn-ghost" data-act="stop-audio">' + I.stop + esc(t('stopPlaying')) + '</button>' +
+      '<button class="btn btn-ghost" data-act="edit-entry" data-id="' + esc(entry.id) + '">' + I.pen + esc(t('edit')) + '</button></div>' +
+      '<div class="btn-row">' +
       '<button class="btn btn-ghost" data-act="close-sheet">' + esc(t('close')) + '</button></div>',
       () => { playerEntry = null; }
     );
@@ -918,6 +927,33 @@
     if (btn) btn.innerHTML = audio.paused ? I.play : I.pause;
   }
   ['timeupdate', 'play', 'pause', 'loadedmetadata'].forEach((ev) => audio.addEventListener(ev, syncPlayer));
+  ['play', 'pause', 'ended', 'emptied'].forEach((ev) => audio.addEventListener(ev, renderMini));
+
+  // Small player above the dock: pause or stop from anywhere while listening.
+  function renderMini() {
+    const root = document.getElementById('mini-root');
+    if (!root) return;
+    const e = S.playingId && S.entries.find((x) => x.id === S.playingId);
+    const show = e && audio.getAttribute('src') && (S.view === 'home' || S.view === 'contents');
+    if (!show) { root.innerHTML = ''; return; }
+    root.innerHTML = '<div class="mini" role="region" aria-label="' + esc(t('nowPlaying')) + '">' +
+      '<button class="mini-btn" data-act="toggle-play" aria-label="' + esc(audio.paused ? t('play') : t('pause')) + '">' + (audio.paused ? I.play : I.pause) + '</button>' +
+      '<button class="mini-title" data-act="play" data-id="' + esc(e.id) + '"><span dir="auto">' + esc(entryTitle(e)) + '</span><span class="tiny muted">' + esc(fmtDayTime(e.startedAt)) + '</span></button>' +
+      '<button class="mini-btn ghost" data-act="stop-audio" aria-label="' + esc(t('stopPlaying')) + '">' + I.close + '</button></div>';
+  }
+
+  function stopAudio() {
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+    if (audio.dataset.url) { URL.revokeObjectURL(audio.dataset.url); audio.dataset.url = ''; }
+    delete audio.dataset.id;
+    S.queue = [];
+    S.playingId = null;
+    renderMini();
+    syncPlayer();
+    if (S.view === 'contents') render();
+  }
   audio.addEventListener('ended', () => {
     const next = S.queue.shift();
     if (next) {
@@ -937,11 +973,21 @@
   }
 
   // ----- edit entry
+  // ISO time -> value for <input type="datetime-local"> in local time
+  function localInput(iso) {
+    const d = new Date(iso);
+    const p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
   function openEdit(entry) {
     openSheet(
       '<h2>' + esc(t('edit')) + '</h2>' +
       '<div class="field"><label for="ttl">' + esc(t('titleLabel')) + '</label>' +
-      '<input id="ttl" type="text" maxlength="200" value="' + esc(entry.title || '') + '" placeholder="' + esc(t('titleExample')) + '" autofocus></div>' +
+      '<input id="ttl" type="text" maxlength="200" dir="auto" value="' + esc(entry.title || '') + '" placeholder="' + esc(t('titleExample')) + '" autofocus></div>' +
+      '<div class="field"><label for="when">' + esc(t('dateTime')) + '</label>' +
+      '<input id="when" type="datetime-local" class="when" value="' + esc(localInput(entry.startedAt)) + '">' +
+      '<span class="muted tiny">' + esc(fmtLong(entry.startedAt)) + '</span></div>' +
       '<div class="field"><span class="label">' + esc(t('moodOptional')) + '</span>' + moodButtons(entry.mood) + '</div>' +
       '<div class="field"><span class="label">' + esc(t('whichChapter')) + '</span>' + chapterChips(entry.chapterId) + '</div>' +
       '<div class="btn-row"><button class="btn btn-primary" data-act="save-edit" data-id="' + esc(entry.id) + '">' + esc(t('done')) + '</button>' +
@@ -956,7 +1002,10 @@
       const chapterId = await resolveChapter();
       const patch = { title: (s.querySelector('#ttl').value || '').trim().slice(0, 200), mood: sheetValue('pick-mood') };
       if (chapterId) patch.chapterId = chapterId;
+      const when = s.querySelector('#when').value;
+      if (when && !Number.isNaN(new Date(when).getTime())) patch.startedAt = new Date(when).toISOString();
       await updateEntry(id, patch);
+      S.entries.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
       closeSheet();
       render();
     } catch (e) { toast(t('saveFailed')); }
@@ -1131,19 +1180,29 @@
       '<h2>' + esc(t('importTitle')) + '</h2>' +
       '<p class="muted small">' + esc(t('importHint')) + '</p>' +
       '<div class="field"><span class="label">' + esc(t('importInto')) + '</span>' + chapterChips(ch ? ch.id : '__new') + '</div>' +
-      '<div class="btn-row"><label class="btn btn-primary" for="impdir">' + esc(t('chooseFolder')) + '</label>' +
-      '<label class="btn btn-ghost" for="impfiles">' + esc(t('chooseFiles')) + '</label></div>' +
-      '<input id="impdir" class="sr-only" type="file" webkitdirectory multiple data-import>' +
-      '<input id="impfiles" class="sr-only" type="file" accept="audio/*,.m4a" multiple data-import>' +
+      (canPickFolder() ? '' : '<ol class="steps small">' + t('importZipSteps').map((x) => '<li>' + esc(x) + '</li>').join('') + '</ol>') +
+      '<div class="btn-row">' +
+      (canPickFolder() ? '<label class="btn btn-primary" for="impdir">' + esc(t('chooseFolder')) + '</label>' : '') +
+      '<label class="btn ' + (canPickFolder() ? 'btn-ghost' : 'btn-primary') + '" for="impfiles">' + esc(t('chooseFilesOrZip')) + '</label></div>' +
+      (canPickFolder() ? '<input id="impdir" class="sr-only" type="file" webkitdirectory multiple data-import>' : '') +
+      '<input id="impfiles" class="sr-only" type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.zip,application/zip" multiple data-import>' +
       '<div data-import-status class="muted small"></div><div class="progress" hidden data-import-bar><span></span></div>' +
       '<button class="btn btn-ghost" data-act="close-sheet">' + esc(t('close')) + '</button>'
     );
   }
 
+  // iPhone and iPad browsers cannot pick a whole folder; they get files or a zipped folder instead.
+  function canPickFolder() {
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const input = document.createElement('input');
+    return !ios && 'webkitdirectory' in input;
+  }
+
   function guessDate(file) {
-    const relPath = file.webkitRelativePath || file.name;
+    const relPath = file.relPath || file.webkitRelativePath || file.name;
     const dm = /(\d{4})-(\d{2})-(\d{2})/.exec(relPath);
-    const tm = /(?:^|[^\d])(\d{1,2})[-_.:](\d{2})[-_.:](\d{2})(?:[^\d]|$)/.exec(file.name);
+    const base = String(file.name).split('/').pop();
+    const tm = /(?:^|[^\d])(\d{1,2})[-_.:](\d{2})[-_.:](\d{2})(?:[^\d]|$)/.exec(base);
     if (dm) {
       const d = new Date(Number(dm[1]), Number(dm[2]) - 1, Number(dm[3]),
         tm ? Number(tm[1]) : 12, tm ? Number(tm[2]) : 0, tm ? Number(tm[3]) : 0);
@@ -1174,33 +1233,47 @@
     return 'imp-' + (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
   }
 
+  const isAudioName = (n) => { const b = String(n).split('/').pop(); const ext = (b.split('.').pop() || '').toLowerCase(); return !b.startsWith('.') && !String(n).includes('__MACOSX') && !!EXT_MIME[ext]; };
+
   async function runImport(fileList) {
-    const files = Array.from(fileList).filter((f) => {
-      const ext = (f.name.split('.').pop() || '').toLowerCase();
-      return !f.name.startsWith('.') && (EXT_MIME[ext] || (f.type && f.type.startsWith('audio/')));
-    });
     const status = sheet().querySelector('[data-import-status]');
     const bar = sheet().querySelector('[data-import-bar]');
-    if (!files.length) { status.textContent = t('importNone'); return; }
+    // Each item: { name, relPath, size, lastModified, getBlob(type) }
+    const items = [];
+    for (const f of Array.from(fileList)) {
+      const ext = (f.name.split('.').pop() || '').toLowerCase();
+      if (ext === 'zip' || f.type === 'application/zip') {
+        status.textContent = t('readingZip');
+        try {
+          const entries = await window.RZip.blobEntries(f);
+          entries.filter((e) => isAudioName(e.name)).forEach((e) => items.push({
+            name: e.name.split('/').pop(), relPath: e.name, size: e.size, lastModified: e.date.getTime(), getBlob: (type) => e.blob(type)
+          }));
+        } catch (e) { console.warn(e); toast(t('zipFailed')); }
+      } else if (isAudioName(f.name) || (f.type && f.type.startsWith('audio/'))) {
+        items.push({ name: f.name, relPath: f.webkitRelativePath || f.name, size: f.size, lastModified: f.lastModified, getBlob: async (type) => (f.type === type ? f : new Blob([f], { type })) });
+      }
+    }
+    if (!items.length) { status.textContent = t('importNone'); return; }
     let chapterId;
     try { chapterId = await resolveChapter(); } catch (e) { toast(t('saveFailed')); return; }
-    const items = files.map((f) => ({ f, date: guessDate(f) })).sort((a, b) => a.date - b.date);
+    const list = items.map((it) => ({ it, date: guessDate(it) })).sort((a, b) => a.date - b.date);
     bar.hidden = false;
     let ok = 0;
-    for (let i = 0; i < items.length; i++) {
-      const { f, date } = items[i];
-      status.textContent = t('importing', { i: num(i + 1), n: num(items.length) });
-      bar.firstChild.style.width = Math.round((i / items.length) * 100) + '%';
-      const ext = (f.name.split('.').pop() || '').toLowerCase();
-      const mime = EXT_MIME[ext] || f.type;
+    for (let i = 0; i < list.length; i++) {
+      const { it, date } = list[i];
+      status.textContent = t('importing', { i: num(i + 1), n: num(list.length) });
+      bar.firstChild.style.width = Math.round((i / list.length) * 100) + '%';
+      const ext = (it.name.split('.').pop() || '').toLowerCase();
+      const mime = EXT_MIME[ext] || 'audio/mp4';
       try {
-        const durationSec = await audioDuration(f);
-        const importKey = hashId((f.webkitRelativePath || f.name) + '|' + f.size + '|' + f.lastModified);
+        const importKey = hashId(it.relPath + '|' + it.size + '|' + it.lastModified);
         if (S.entries.some((e) => e.importKey === importKey)) continue;
-        const blob = f.type === mime ? f : new Blob([f], { type: mime });
+        const blob = await it.getBlob(mime);
+        const durationSec = await audioDuration(blob);
         await addEntry({ startedAt: date.toISOString(), durationSec, chapterId, title: '', source: 'import', importKey }, blob);
         ok++;
-      } catch (e) { console.warn('import failed', f.name, e); }
+      } catch (e) { console.warn('import failed', it.name, e); }
     }
     bar.firstChild.style.width = '100%';
     status.textContent = t('imported', { n: num(ok) });
@@ -1224,7 +1297,7 @@
       const el = app.querySelector('[data-hope]');
       if (el) { el.textContent = list[S.hopeIndex]; el.parentElement.classList.remove('swap'); void el.offsetWidth; el.parentElement.classList.add('swap'); }
     },
-    'record': () => Rec.start(),
+    'record': () => { if (!audio.paused) stopAudio(); Rec.start(); },
     'rec-mark': () => Rec.mark(),
     'rec-pause': () => Rec.togglePause(),
     'rec-stop': () => Rec.stop(),
@@ -1278,6 +1351,13 @@
     'rename-chapter': (el) => openChapterName(S.chapters.find((c) => c.id === el.dataset.id)),
     'new-chapter': () => openChapterName(null),
     'toggle-play': () => { if (audio.paused) safe(audio.play()); else audio.pause(); },
+    'stop-audio': () => stopAudio(),
+    'delete-chapter': async (el) => {
+      if (entriesOf(el.dataset.id).length) return;
+      await safe(DB.del('chapters', el.dataset.id));
+      S.chapters = S.chapters.filter((c) => c.id !== el.dataset.id);
+      render();
+    },
     'skip': (el) => { audio.currentTime = Math.max(0, audio.currentTime + Number(el.dataset.sec)); },
     'seek-to': (el) => { audio.currentTime = Number(el.dataset.sec); safe(audio.play()); },
     'rate': (el) => {

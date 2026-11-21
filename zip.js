@@ -115,7 +115,59 @@
     return out;
   }
 
-  const api = { zipParts, unzip, crc32: (b) => crcDone(crc32(b)) };
+
+  // Reads a zip lazily from a Blob/File (e.g. a folder compressed in the iPhone Files app).
+  // Returns entries; each has a .blob() that streams just that file, inflating it if needed,
+  // so even large archives are never loaded into memory at once.
+  async function blobEntries(file) {
+    const size = file.size;
+    const tailStart = Math.max(0, size - 65557);
+    const tail = new Uint8Array(await file.slice(tailStart).arrayBuffer());
+    const tv = new DataView(tail.buffer);
+    let eocd = -1;
+    for (let i = tail.length - 22; i >= 0; i--) { if (tv.getUint32(i, true) === 0x06054b50) { eocd = i; break; } }
+    if (eocd < 0) throw new Error('not_a_zip');
+    const count = tv.getUint16(eocd + 10, true);
+    const cdSize = tv.getUint32(eocd + 12, true);
+    const cdOff = tv.getUint32(eocd + 16, true);
+    if (cdOff === 0xFFFFFFFF || count === 0xFFFF) throw new Error('zip64_unsupported');
+    const cd = new Uint8Array(await file.slice(cdOff, cdOff + cdSize).arrayBuffer());
+    const dv = new DataView(cd.buffer);
+    const dec = new TextDecoder();
+    const out = [];
+    let p = 0;
+    for (let i = 0; i < count; i++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('bad_zip');
+      const method = dv.getUint16(p + 10, true);
+      const time = dv.getUint16(p + 12, true);
+      const date = dv.getUint16(p + 14, true);
+      const csize = dv.getUint32(p + 20, true);
+      const usize = dv.getUint32(p + 24, true);
+      const nameLen = dv.getUint16(p + 28, true);
+      const extraLen = dv.getUint16(p + 30, true);
+      const commentLen = dv.getUint16(p + 32, true);
+      const localOff = dv.getUint32(p + 42, true);
+      const name = dec.decode(cd.subarray(p + 46, p + 46 + nameLen));
+      p += 46 + nameLen + extraLen + commentLen;
+      if (name.endsWith('/')) continue;
+      const when = new Date(((date >> 9) & 0x7f) + 1980, ((date >> 5) & 0x0f) - 1, date & 0x1f, (time >> 11) & 0x1f, (time >> 5) & 0x3f, (time & 0x1f) * 2);
+      out.push({
+        name, size: usize, method, date: when,
+        async blob(type) {
+          const head = new DataView(await file.slice(localOff, localOff + 30).arrayBuffer());
+          const start = localOff + 30 + head.getUint16(26, true) + head.getUint16(28, true);
+          const raw = file.slice(start, start + csize);
+          if (method === 0) return new Blob([raw], { type: type || '' });
+          if (method !== 8 || typeof DecompressionStream === 'undefined') throw new Error('unsupported_compression');
+          const inflated = await new Response(raw.stream().pipeThrough(new DecompressionStream('deflate-raw'))).blob();
+          return new Blob([inflated], { type: type || '' });
+        }
+      });
+    }
+    return out;
+  }
+
+  const api = { zipParts, unzip, blobEntries, crc32: (b) => crcDone(crc32(b)) };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RZip = api;
 })(typeof self !== 'undefined' ? self : this);
