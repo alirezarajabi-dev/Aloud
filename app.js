@@ -330,7 +330,7 @@
       '<span class="meta">' + esc(meta) + '</span>';
     if (small) return '<div class="cover small" aria-hidden="true">' + inner + '</div>';
     // A div (not a button) so the photo circle inside it can be its own tap target.
-    return '<div class="cover" data-act="contents" role="link" tabindex="0" aria-label="' + esc(t('contents')) + '">' + inner + '</div>';
+    return '<div class="cover" data-act="open-book" role="button" tabindex="0" aria-label="' + esc(t('openBook')) + '">' + inner + '</div>';
   }
 
   function langPill() {
@@ -440,13 +440,17 @@
   }
 
   // ----- opening: the journal opens; tap to reveal today's line; then the cover closes with your photo on it
-  function playIntro() {
-    if (S.introPlayed) return;
-    S.introPlayed = true;
-    // Once a day is enough; after that the app opens straight to the journal.
-    const today = new Date().toDateString();
-    try { if (localStorage.getItem('aloud-intro') === today) return; localStorage.setItem('aloud-intro', today); } catch (e) { /* private mode */ }
-    const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function playIntro(force) {
+    if (document.querySelector('.intro')) return;
+    if (!force) {
+      if (S.introPlayed) return;
+      S.introPlayed = true;
+      // On its own it opens once a day; tapping the book opens it any time.
+      const today = new Date().toDateString();
+      try { if (localStorage.getItem('aloud-intro') === today) return; localStorage.setItem('aloud-intro', today); } catch (e) { /* private mode */ }
+    }
+    // The opening is the heart of the app, so it plays even when the phone asks for less motion.
+    const calm = false;
     const quote = todayHope();
     const wrap = document.createElement('div');
     wrap.className = 'intro';
@@ -570,7 +574,7 @@
       '<div class="top-actions">' + langPill() +
       '<button class="iconbtn raised" data-act="settings" aria-label="' + esc(t('settings')) + '">' + I.gear + (needsBackup() ? '<i class="badge-dot" aria-hidden="true"></i>' : '') + '</button></div></header>' +
       dateBar() +
-      '<div class="cover-area">' + coverHtml(false) +
+      '<div class="cover-area">' + coverHtml(false) + '<span class="cover-hint">' + I.spark + esc(t('tapBook')) + '</span>' +
       '<button class="soft-btn raised" data-act="contents">' + I.book + esc(t('openContents')) +
       (S.entries.length ? '<span class="muted">' + esc(SEP() + pagesText(S.entries.length)) + '</span>' : '') + '</button></div>' +
       hopeCard() +
@@ -1515,6 +1519,7 @@
   // ---------------------------------------------------------------- events
   const actions = {
     'contents': () => go('contents'),
+    'open-book': () => playIntro(true),
     'home': () => go('home'),
     'back': () => { if (history.state && history.state.view && history.state.view !== 'home') history.back(); else go('home'); },
     'open-chapter': (el) => { S.openChapter = el.dataset.id; render(); const sc = app.querySelector('.screen'); if (sc) sc.scrollTop = 0; },
@@ -1631,7 +1636,7 @@
   });
 
   document.addEventListener('keydown', (ev) => {
-    if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('div.cover[data-act]')) { ev.preventDefault(); actions.contents(); return; }
+    if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('div.cover[data-act]')) { ev.preventDefault(); playIntro(true); return; }
     if (ev.key === 'Escape' && sheetRoot.firstChild && !saving) closeSheet();
   });
 

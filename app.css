@@ -408,6 +408,19 @@ html[lang='en'] .intro-quote { font-size: 21px; line-height: 1.35; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+  /* the book opening keeps its motion (asked for by the owner); everything else stays still */
+  .intro { transition: opacity 0.6s ease !important; }
+  .intro-book { animation: coverIn 0.8s var(--ease) both !important; }
+  .intro-cover { transition: transform 1.2s var(--ease) !important; }
+  .reveal-btn { transition: opacity 0.6s !important; }
+  .reveal-btn svg { animation: twinkle 1.6s ease-in-out infinite !important; }
+  .intro.revealed .intro-quote { animation: magicIn 1.1s var(--ease) both !important; }
+  .intro.revealed .q-text .w { animation: wordIn 0.7s var(--ease) both !important; }
+  .intro.revealed .spark { animation: sparkle 1.8s ease-out both !important; }
+  .intro.settled .spark { animation: sparkle 2.6s ease-in-out infinite !important; }
+  .intro.settled .intro-quote { animation: glowSettle 3.5s ease-in-out infinite alternate !important; }
+  .intro-go { transition: opacity 0.5s !important; }
+  .intro.shine .intro-cover .cover-photo { animation: photoShine 1.3s var(--ease) both !important; }
   .q-text .w, .intro.revealed .intro-quote { opacity: 1 !important; }
   .reveal-btn { opacity: 1 !important; }
   .intro.revealed .intro-go { opacity: 1 !important; pointer-events: auto !important; }
@@ -415,3 +428,7 @@ html[lang='en'] .intro-quote { font-size: 21px; line-height: 1.35; }
 
 .iconbtn { position: relative; }
 .iconbtn .badge-dot { position: absolute; top: 8px; inset-inline-end: 8px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px var(--surface); }
+
+.cover-hint { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); margin-top: -4px; }
+.cover-hint svg { width: 13px; height: 13px; color: var(--gilt); }
+.cover-area { gap: 10px; }
