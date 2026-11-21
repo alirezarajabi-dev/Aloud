@@ -146,7 +146,7 @@
   // Chapters the app makes by itself follow the interface language; chapters you name keep your words.
   const AUTO_TITLES = ['فصل اول', 'Chapter One'];
   const isAutoChapter = (ch) => !!ch && (ch.auto === true || (ch.auto === undefined && AUTO_TITLES.includes(ch.title)));
-  const chTitle = (ch) => (!ch ? '' : isAutoChapter(ch) ? t('defaultChapter') : ch.title);
+  const chTitle = (ch) => (!ch ? '' : isAutoChapter(ch) ? t('defaultChapter') : (lang() === 'en' && ch.titleEn) ? ch.titleEn : ch.title);
 
   async function createChapter(title, auto) {
     const ch = { id: newId(), title: String(title).trim().slice(0, 120), auto: !!auto, createdAt: nowIso() };
@@ -967,13 +967,32 @@
 
   // ----- chapters
   function openChapterName(ch) {
+    const auto = isAutoChapter(ch);
+    const fa = ch ? (auto ? 'فصل اول' : ch.title) : '';
+    const en = ch ? (auto ? 'Chapter One' : (ch.titleEn || '')) : '';
     openSheet(
       '<h2>' + esc(ch ? t('renameChapter') : t('newChapterName')) + '</h2>' +
       '<form class="field" data-form="chapter" data-id="' + esc(ch ? ch.id : '') + '">' +
-      '<label class="sr-only" for="chname">' + esc(t('newChapterName')) + '</label>' +
-      '<input id="chname" type="text" maxlength="120" required value="' + esc(chTitle(ch)) + '" autofocus>' +
+      '<label for="chname">' + esc(t('chapterNameFa')) + '</label>' +
+      '<input id="chname" type="text" maxlength="120" dir="auto" required value="' + esc(fa) + '" autofocus>' +
+      '<label for="chnameen">' + esc(t('chapterNameEn')) + '</label>' +
+      '<input id="chnameen" type="text" maxlength="120" dir="ltr" placeholder="e.g. The New Job" value="' + esc(en) + '">' +
+      '<span class="muted tiny">' + esc(t('chapterNameEnHint')) + '</span>' +
       '<div class="btn-row"><button class="btn btn-primary" type="submit">' + esc(t('done')) + '</button>' +
       '<button class="btn btn-ghost" type="button" data-act="close-sheet">' + esc(t('close')) + '</button></div></form>'
+    );
+  }
+
+  // Asked once when switching to English without an English name.
+  function askEnglishName() {
+    openSheet(
+      '<h2>' + esc(t('nameEnLabel')) + '</h2>' +
+      '<p class="muted small">' + esc(t('nameEnAsk')) + '</p>' +
+      '<form class="field" data-form="name-en">' +
+      '<label class="sr-only" for="asknameen">' + esc(t('nameEnLabel')) + '</label>' +
+      '<input id="asknameen" type="text" maxlength="60" dir="ltr" placeholder="Alireza" autocomplete="off" autofocus>' +
+      '<div class="btn-row"><button class="btn btn-primary" type="submit">' + esc(t('done')) + '</button>' +
+      '<button class="btn btn-ghost" type="button" data-act="close-sheet">' + esc(t('later')) + '</button></div></form>'
     );
   }
 
@@ -1205,6 +1224,7 @@
     'toggle-lang': async () => {
       await safe(putSettings({ lang: lang() === 'fa' ? 'en' : 'fa' }));
       render();
+      if (lang() === 'en' && !S.settings.nameEn && !S.askedNameEn) { S.askedNameEn = true; askEnglishName(); }
     },
     'set-lang': async (el) => {
       S.settings.lang = el.dataset.lang;
@@ -1216,6 +1236,8 @@
         await safe(putSettings({ lang: el.dataset.lang }));
         render();
         openSettings();
+        const box = sheet() && sheet().querySelector('#setnameen');
+        if (el.dataset.lang === 'en' && box && !box.value) box.focus();
       }
     },
     'set-theme': async (el) => {
@@ -1300,16 +1322,26 @@
 
   document.addEventListener('submit', async (ev) => {
     const form = ev.target;
+    if (form.dataset.form === 'name-en') {
+      ev.preventDefault();
+      const nameEn = form.querySelector('#asknameen').value.trim().slice(0, 60);
+      if (nameEn) await safe(putSettings({ nameEn }));
+      closeSheet(); render();
+      return;
+    }
     if (form.dataset.form === 'chapter') {
       ev.preventDefault();
       const title = form.querySelector('#chname').value.trim();
+      const titleEn = form.querySelector('#chnameen').value.trim().slice(0, 120);
       if (!title) return;
       try {
         if (form.dataset.id) {
           const ch = S.chapters.find((c) => c.id === form.dataset.id);
-          if (ch) { ch.title = title.slice(0, 120); ch.auto = false; await DB.put('chapters', ch); }
+          if (ch) { ch.title = title.slice(0, 120); ch.titleEn = titleEn; ch.auto = false; await DB.put('chapters', ch); }
         } else {
-          S.openChapter = (await createChapter(title)).id;
+          const ch = await createChapter(title);
+          ch.titleEn = titleEn; await DB.put('chapters', ch);
+          S.openChapter = ch.id;
         }
         closeSheet(); render();
       } catch (e) { toast(t('saveFailed')); }
