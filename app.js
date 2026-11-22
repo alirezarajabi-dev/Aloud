@@ -149,12 +149,11 @@
     if (!rec || !rec.blob) return false;
     try { await rec.blob.slice(0, 16).arrayBuffer(); return true; } catch (e) { return false; }
   }
-  // A soft, slowly changing pad made right here in the browser — no music file, no one else's song.
+  // Calm music ("Sunrise", in music.js) made right here in the browser — no music file, no one else's song.
   // It plays only in your ears; the microphone records your voice alone (best with headphones).
   const Ambient = {
     on: (() => { try { return localStorage.getItem('aloud-music') === '1'; } catch (e) { return false; } })(),
-    ctx: null, master: null, voices: [], timer: 0, step: 0,
-    chords: [[110, 164.81, 220, 261.63, 329.63], [87.31, 130.81, 174.61, 220, 261.63], [130.81, 196, 261.63, 329.63, 392], [98, 146.83, 196, 246.94, 293.66]],
+    ctx: null, song: null,
     prime() { // must run inside the tap, so iPhone allows sound
       try {
         if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -162,33 +161,13 @@
       } catch (e) { this.ctx = null; }
     },
     start() {
-      this.prime(); if (!this.ctx || this.master) return;
-      const c = this.ctx; const now = c.currentTime;
-      this.master = c.createGain(); this.master.gain.setValueAtTime(0, now); this.master.gain.linearRampToValueAtTime(0.07, now + 3);
-      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 0.3;
-      lp.connect(this.master); this.master.connect(c.destination);
-      this.voices = this.chords[0].map((f, i) => {
-        const o = c.createOscillator(); o.type = i % 2 ? 'sine' : 'triangle'; o.frequency.value = f; o.detune.value = (i - 2) * 3;
-        const g = c.createGain(); g.gain.value = 0.16;
-        const lfo = c.createOscillator(); lfo.frequency.value = 0.05 + i * 0.023; const lg = c.createGain(); lg.gain.value = 0.07;
-        lfo.connect(lg); lg.connect(g.gain); o.connect(g); g.connect(lp); o.start(); lfo.start();
-        return { o, lfo };
-      });
-      this.step = 0;
-      this.timer = setInterval(() => {
-        if (!this.ctx) return;
-        this.step = (this.step + 1) % this.chords.length;
-        const t0 = this.ctx.currentTime;
-        this.voices.forEach((v, i) => v.o.frequency.exponentialRampToValueAtTime(this.chords[this.step][i], t0 + 4));
-      }, 9000);
+      this.prime(); if (!this.ctx || this.song || !window.AloudMusic) return;
+      this.song = window.AloudMusic.create(this.ctx, this.ctx.destination);
+      this.song.start();
     },
     stop() {
-      clearInterval(this.timer);
-      if (!this.master || !this.ctx) return;
-      const m = this.master; const vs = this.voices; const now = this.ctx.currentTime;
-      m.gain.cancelScheduledValues(now); m.gain.setValueAtTime(m.gain.value, now); m.gain.linearRampToValueAtTime(0, now + 1.5);
-      setTimeout(() => { vs.forEach((v) => { try { v.o.stop(); v.lfo.stop(); } catch (e) { /* done */ } }); try { m.disconnect(); } catch (e) { /* done */ } }, 1700);
-      this.master = null; this.voices = [];
+      if (!this.song) return;
+      this.song.stop(1.5); this.song = null;
     },
     toggle() {
       this.on = !this.on;
@@ -774,9 +753,8 @@
         (has ? '<span class="dot' + (byDay.get(k).some(isGratitude) ? ' gold' : '') + '" aria-hidden="true"></span>' : '') + '</button>';
     });
     const sel = byDay.get(S.calSelected) || [];
-    const list = sel.length ? sel.map((e) => '<button class="page-row" data-act="play" data-id="' + esc(e.id) + '">' +
-      '<span class="bar ' + moodClass(e.mood) + '"></span><span class="txt"><span dir="auto" class="t' + (e.title ? '' : ' untitled') + '">' + esc(entryTitle(e)) + '</span>' +
-      '<span class="d">' + esc(fmtDate(e.startedAt, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span></span><span class="len">' + esc(fmtLen(e.durationSec)) + '</span></button>').join('')
+    // The day's pages look exactly like rows in the contents: title, then time and length on their own line.
+    const list = sel.length ? '<div class="plist raised cal-list">' + sel.slice().reverse().map(pageRow).join('') + '</div>'
       : '<div class="empty small">' + esc(t('noPagesThisDay')) + '</div>';
     openSheet(
       '<div class="cal-head"><button class="iconbtn flip-rtl" data-act="cal-prev" aria-label="' + esc(t('prevMonth')) + '">' + I.back + '</button>' +
