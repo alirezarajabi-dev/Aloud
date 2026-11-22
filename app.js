@@ -1951,49 +1951,27 @@
     }
     // The logo moves only while a recording is running, and stays wherever it stopped — even after the app closes.
     let g = geometry();
-    let frac = 0.5 * (g.sx / 2 + g.arc + g.sy / 2) / g.L * 2;
-    try { const v = parseFloat(localStorage.getItem('aloud-jewel')); if (v >= 0 && v < 1) frac = v; } catch (e) { /* private mode */ }
+    let frac = (g.sx + g.arc + g.sy / 2) / g.L; // starts at home
     let running = false; let lastSave = 0;
     const moving = () => !!(Rec.active && !Rec.paused) && !document.hidden;
     function place() { const [x, y] = pointAt(g, frac * g.L); el.style.transform = 'translate(' + (x - 15).toFixed(1) + 'px,' + (y - 15).toFixed(1) + 'px)'; }
     function save() { try { localStorage.setItem('aloud-jewel', frac.toFixed(5)); } catch (e) { /* ignore */ } }
-    // A good resting spot: on a straight side, clear of the phone's clock and home bar, and not over anything on screen.
-    const BUSY = 'button, a, label, summary, input, textarea, select, canvas, img:not(#jewel), b, span, small, p, h1, h2, h3, .raised, .cover, .dock, .mini';
-    function goodAt(f) {
-      const s = f * g.L; const { sx, sy, arc } = g;
-      const onSide = (s > sx * 0.08 && s < sx * 0.92) || (s > sx + arc + sy * 0.04 && s < sx + arc + sy * 0.96) ||
-        (s > 2 * sx + 2 * arc + sy + sy * 0.04 && s < 2 * sx + 2 * arc + 2 * sy - sy * 0.04);
-      if (!onSide) return false; // corners and the bottom edge sit under the home bar and dock
-      const [x, y] = pointAt(g, s);
-      if (y < 60 || y > window.innerHeight - 40) return false;
-      const pts = [[x, y], [x - 14, y], [x + 14, y], [x, y - 14], [x, y + 14]];
-      for (const [px, py] of pts) {
-        if (px < 0 || py < 0 || px >= window.innerWidth || py >= window.innerHeight) continue;
-        for (const el2 of document.elementsFromPoint(px, py)) {
-          if (el2 === el) continue;
-          if (el2.matches && el2.matches(BUSY)) return false;
-        }
-      }
-      return true;
-    }
+    // Its home is the middle of the right-hand side. When a recording stops, it travels on along the frame
+    // until it reaches home, and rests there.
+    const homeFrac = () => (g.sx + g.arc + g.sy / 2) / g.L;
     let gliding = 0;
     function settle() {
       if (moving() || gliding) return;
-      if (goodAt(frac)) return;
-      // Search forward (and a little backward) for the nearest good place, then glide there.
-      const step = 4 / g.L; let target = null;
-      for (let i = 1; i * step < 1; i++) {
-        const fw = (frac + i * step) % 1; if (goodAt(fw)) { target = { f: fw, dir: 1, d: i * step }; break; }
-        const bw = (frac - i * step + 1) % 1; if (goodAt(bw)) { target = { f: bw, dir: -1, d: i * step }; break; }
-      }
-      if (!target) return;
-      const from = frac; const dur = Math.min(1600, 300 + target.d * g.L * 6); const t0 = performance.now();
-      const ease = (u) => 1 - Math.pow(1 - u, 3);
+      const target = homeFrac();
+      const d = (target - frac + 1) % 1;
+      if (d * g.L < 2 || d * g.L > g.L - 2) { frac = target; place(); return; }
+      const from = frac; const dur = Math.min(4000, Math.max(700, d * g.L / 260 * 1000)); const t0 = performance.now();
+      const ease = (u) => (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2);
       const tick = (now) => {
         if (moving()) { gliding = 0; return; }
         const u = Math.min(1, (now - t0) / dur);
-        frac = (from + target.dir * target.d * ease(u) + 1) % 1; place();
-        if (u < 1) gliding = requestAnimationFrame(tick); else { gliding = 0; save(); }
+        frac = (from + d * ease(u)) % 1; place();
+        if (u < 1) gliding = requestAnimationFrame(tick); else { gliding = 0; frac = target; save(); }
       };
       gliding = requestAnimationFrame(tick);
     }
