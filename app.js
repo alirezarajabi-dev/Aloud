@@ -193,7 +193,8 @@
     toggle() {
       this.on = !this.on;
       try { localStorage.setItem('aloud-music', this.on ? '1' : '0'); } catch (e) { /* private mode */ }
-      if (this.on) this.start(); else this.stop();
+      const busy = Rec.active || !audio.paused;
+      if (this.on && busy) this.start(); else this.stop();
     }
   };
 
@@ -938,20 +939,25 @@
     async start(kind) {
       this.kind = kind || 'page';
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) { toast(t('micUnsupported')); return; }
+      // The sound engine is made inside the tap, so iPhone lets it run.
+      try { const AC = window.AudioContext || window.webkitAudioContext; this.ctx = new AC(); safe(this.ctx.resume()); } catch (e) { this.ctx = null; }
       try {
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: false } });
       } catch (e) {
+        if (this.ctx) safe(this.ctx.close());
+      this.ctx = null; this.chainOut = null; this.ctx = null;
         toast(t('micDenied'));
         return;
       }
+      this.recStream = await this.cleanVoice();
       const want = this.pickMime();
       try {
         // Speech needs little data: mono AAC at 48 kbps (~21 MB an hour) or Opus at 32 kbps (~14 MB an hour)
         // sounds clear while keeping files small.
         const bits = /opus|webm|ogg/.test(want) ? 32000 : 48000;
-        this.mr = want ? new MediaRecorder(this.stream, { mimeType: want, audioBitsPerSecond: bits }) : new MediaRecorder(this.stream, { audioBitsPerSecond: bits });
+        this.mr = want ? new MediaRecorder(this.recStream, { mimeType: want, audioBitsPerSecond: bits }) : new MediaRecorder(this.recStream, { audioBitsPerSecond: bits });
       } catch (e) {
-        this.mr = new MediaRecorder(this.stream);
+        this.mr = new MediaRecorder(this.recStream);
       }
       this.mime = (this.mr.mimeType || want || 'audio/webm').split(';')[0];
       this.chunks = []; this.seq = 0; this.bookmarks = []; this.elapsedBefore = 0; this.paused = false; this.interrupted = false;
@@ -989,14 +995,45 @@
       this.draw();
     },
 
+    // Cleaner speech before it is saved: rumble below 85 Hz removed, hiss above 8 kHz softened,
+    // levels evened out, and room noise lowered while you are silent. If anything here is not
+    // supported, the microphone is recorded as it is.
+    async cleanVoice() {
+      this.chainOut = null;
+      try {
+        const c = this.ctx;
+        if (!c || !c.createMediaStreamDestination) return this.stream;
+        const src = c.createMediaStreamSource(this.stream);
+        const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 85; hp.Q.value = 0.7;
+        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 8000; lp.Q.value = 0.5;
+        const comp = c.createDynamicsCompressor();
+        comp.threshold.value = -26; comp.knee.value = 18; comp.ratio.value = 3; comp.attack.value = 0.006; comp.release.value = 0.25;
+        const makeup = c.createGain(); makeup.gain.value = 1.6;
+        src.connect(hp); hp.connect(lp); lp.connect(comp);
+        let last = comp;
+        if (c.audioWorklet) {
+          try {
+            await c.audioWorklet.addModule('voice-gate.js');
+            const gate = new AudioWorkletNode(c, 'voice-gate', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+            comp.connect(gate); last = gate;
+          } catch (e) { /* no gate on this browser */ }
+        }
+        last.connect(makeup);
+        const dest = c.createMediaStreamDestination(); dest.channelCount = 1;
+        makeup.connect(dest);
+        if (c.state !== 'running') { try { await c.resume(); } catch (e) { /* stays suspended */ } }
+        if (c.state !== 'running') return this.stream; // a silent engine would record nothing
+        this.chainOut = makeup;
+        return dest.stream;
+      } catch (e) { return this.stream; }
+    },
+
     setupMeter() {
       try {
-        const AC = window.AudioContext || window.webkitAudioContext;
-        this.ctx = new AC();
-        const src = this.ctx.createMediaStreamSource(this.stream);
+        if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; this.ctx = new AC(); }
         this.analyser = this.ctx.createAnalyser();
         this.analyser.fftSize = 512;
-        src.connect(this.analyser);
+        if (this.chainOut) this.chainOut.connect(this.analyser); else this.ctx.createMediaStreamSource(this.stream).connect(this.analyser);
         this.levels = new Array(48).fill(0);
         this.lastPush = 0;
       } catch (e) { this.analyser = null; }
@@ -1078,6 +1115,7 @@
       cancelAnimationFrame(this.raf);
       if (this.stream) this.stream.getTracks().forEach((tr) => tr.stop());
       if (this.ctx) safe(this.ctx.close());
+      this.ctx = null; this.chainOut = null;
       if (this.wake) safe(this.wake.release());
       this.wake = null;
       const blob = new Blob(this.chunks, { type: this.mime });
@@ -1337,6 +1375,7 @@
   let playerEntry = null;
   function openPlayer(entry, fromQueue) {
     if (!fromQueue) S.queue = [];
+    if (Ambient.on) Ambient.prime();
     const autoplay = true;
     playerEntry = entry;
     S.playingId = entry.id;
@@ -1367,6 +1406,8 @@
       '<button class="iconbtn" data-act="skip" data-sec="-15" aria-label="-15s">' + I.rew + '</button>' +
       '<button class="playbtn" data-act="toggle-play" data-playbtn aria-label="play">' + (audio.paused ? I.play : I.pause) + '</button>' +
       '<button class="iconbtn" data-act="skip" data-sec="15" aria-label="+15s">' + I.fwd + '</button></div>' +
+      '<button class="music-btn' + (Ambient.on ? ' on' : '') + '" data-act="toggle-music" aria-pressed="' + Ambient.on + '">' + I.note +
+      '<span>' + esc(t('musicUnder')) + '</span></button>' +
       '<div class="field"><span class="label">' + esc(t('speed')) + '</span><div class="chips">' +
       [1, 1.25, 1.5, 2].map((r) => '<button class="chip" data-act="rate" data-rate="' + r + '" aria-pressed="' + (audio.playbackRate === r) + '">' + esc(num(r)) + '×</button>').join('') + '</div></div>' +
       (marks ? '<div class="field"><span class="label">' + esc(t('bookmarks')) + '</span><div class="chips">' + marks + '</div></div>' : '') +
@@ -1380,7 +1421,7 @@
     if (audio.src && (fromQueue || audio.paused)) safe(audio.play());
     const sh = sheet();
     if (sh) onSwipe(sh, (d) => {
-      const list = entriesOf(entry.chapterId);
+      const list = S.entries;
       const i = list.findIndex((x) => x.id === entry.id);
       const next = list[i + d];
       if (next) openPlayer(next);
@@ -1401,6 +1442,9 @@
     if (btn) btn.innerHTML = audio.paused ? I.play : I.pause;
   }
   ['timeupdate', 'play', 'pause', 'loadedmetadata'].forEach((ev) => audio.addEventListener(ev, syncPlayer));
+  // Calm music under a page while it plays (the file itself stays your voice only).
+  audio.addEventListener('play', () => { if (Ambient.on && !Rec.active) Ambient.start(); });
+  audio.addEventListener('pause', () => { if (!Rec.active && !(audio.ended && S.queue.length)) Ambient.stop(); });
   ['play', 'pause', 'ended', 'emptied'].forEach((ev) => audio.addEventListener(ev, renderMini));
 
   // Small player above the dock: pause or stop from anywhere while listening.
@@ -2116,7 +2160,7 @@
   }
 
   // Tiny hooks for automated tests; harmless in normal use.
-  window.__aloud = { S, t, fmtClock, guessDate, hashId, DB };
+  window.__aloud = { S, t, fmtClock, guessDate, hashId, DB, Rec };
 
   boot();
 })();
