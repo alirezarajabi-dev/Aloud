@@ -353,7 +353,7 @@
     const inner = spineHtml() + '<div class="frame" aria-hidden="true"></div>' + cornersHtml() +
       '<span class="title">' + photoSlot +
       '<span class="t1">' + esc(t('journalOf')) + '</span><span class="t2' + (name.length > 7 ? ' long' : '') + '" data-cover-name>' + esc(name) + '</span></span>' +
-      '<span class="meta">' + esc(meta) + '</span>';
+      (small ? '' : bookSwitch()) + '<span class="meta">' + esc(meta) + '</span>';
     if (small) return '<div class="cover small" aria-hidden="true">' + inner + '</div>';
     // A div (not a button) so the photo circle inside it can be its own tap target.
     return '<div class="cover" data-act="open-book" role="button" tabindex="0" aria-label="' + esc(t('openBook')) + '">' + inner + '</div>';
@@ -629,7 +629,7 @@
       '<div class="top-actions">' + langPill() +
       '<button class="iconbtn raised" data-act="settings" aria-label="' + esc(t('settings')) + '">' + I.gear + (needsBackup() ? '<i class="badge-dot" aria-hidden="true"></i>' : '') + '</button></div></header>' +
       dateBar() +
-      '<div class="cover-area"><div class="cover-holder">' + coverHtml(false) + bookSwitch() + '</div>' +
+      '<div class="cover-area"><div class="cover-holder">' + coverHtml(false) + '</div>' +
       '<button class="soft-btn raised" data-act="contents">' + I.book + esc(t('openContents')) +
       (S.entries.length ? '<span class="muted">' + esc(SEP() + pagesText(S.entries.length)) + '</span>' : '') + '</button></div>' +
       hopeCard() +
