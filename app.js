@@ -76,6 +76,8 @@
     book: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 7h6"/></svg>',
     cal: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
     camera: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    leaf: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14z"/><path d="M5 19l7-7"/></svg>',
+    note: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
     check: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     trash: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6.5 7l1 13h9l1-13"/><path d="M10 11v5M14 11v5"/></svg>',
     hand: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 14a8 8 0 0 1-8 8"/><path d="M18 11v-1a2 2 0 0 0-4 0"/><path d="M14 10V9a2 2 0 0 0-4 0v1"/><path d="M10 9.5V4a2 2 0 0 0-4 0v10"/><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>',
@@ -147,6 +149,60 @@
     if (!rec || !rec.blob) return false;
     try { await rec.blob.slice(0, 16).arrayBuffer(); return true; } catch (e) { return false; }
   }
+  // A soft, slowly changing pad made right here in the browser — no music file, no one else's song.
+  // It plays only in your ears; the microphone records your voice alone (best with headphones).
+  const Ambient = {
+    on: (() => { try { return localStorage.getItem('aloud-music') === '1'; } catch (e) { return false; } })(),
+    ctx: null, master: null, voices: [], timer: 0, step: 0,
+    chords: [[110, 164.81, 220, 261.63, 329.63], [87.31, 130.81, 174.61, 220, 261.63], [130.81, 196, 261.63, 329.63, 392], [98, 146.83, 196, 246.94, 293.66]],
+    prime() { // must run inside the tap, so iPhone allows sound
+      try {
+        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+      } catch (e) { this.ctx = null; }
+    },
+    start() {
+      this.prime(); if (!this.ctx || this.master) return;
+      const c = this.ctx; const now = c.currentTime;
+      this.master = c.createGain(); this.master.gain.setValueAtTime(0, now); this.master.gain.linearRampToValueAtTime(0.07, now + 3);
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 0.3;
+      lp.connect(this.master); this.master.connect(c.destination);
+      this.voices = this.chords[0].map((f, i) => {
+        const o = c.createOscillator(); o.type = i % 2 ? 'sine' : 'triangle'; o.frequency.value = f; o.detune.value = (i - 2) * 3;
+        const g = c.createGain(); g.gain.value = 0.16;
+        const lfo = c.createOscillator(); lfo.frequency.value = 0.05 + i * 0.023; const lg = c.createGain(); lg.gain.value = 0.07;
+        lfo.connect(lg); lg.connect(g.gain); o.connect(g); g.connect(lp); o.start(); lfo.start();
+        return { o, lfo };
+      });
+      this.step = 0;
+      this.timer = setInterval(() => {
+        if (!this.ctx) return;
+        this.step = (this.step + 1) % this.chords.length;
+        const t0 = this.ctx.currentTime;
+        this.voices.forEach((v, i) => v.o.frequency.exponentialRampToValueAtTime(this.chords[this.step][i], t0 + 4));
+      }, 9000);
+    },
+    stop() {
+      clearInterval(this.timer);
+      if (!this.master || !this.ctx) return;
+      const m = this.master; const vs = this.voices; const now = this.ctx.currentTime;
+      m.gain.cancelScheduledValues(now); m.gain.setValueAtTime(m.gain.value, now); m.gain.linearRampToValueAtTime(0, now + 1.5);
+      setTimeout(() => { vs.forEach((v) => { try { v.o.stop(); v.lfo.stop(); } catch (e) { /* done */ } }); try { m.disconnect(); } catch (e) { /* done */ } }, 1700);
+      this.master = null; this.voices = [];
+    },
+    toggle() {
+      this.on = !this.on;
+      try { localStorage.setItem('aloud-music', this.on ? '1' : '0'); } catch (e) { /* private mode */ }
+      if (this.on) this.start(); else this.stop();
+    }
+  };
+
+  // Gratitude: a daily kind of page. Older pages simply titled "شکرگزاری" / "Gratitude" count too.
+  const GRAT_WORDS = ['شکرگزاری', 'شکر گزاری', 'gratitude'];
+  const isGratitude = (e) => !!e && (e.kind === 'gratitude' || GRAT_WORDS.includes(String(e.title || '').trim().toLowerCase()));
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const gratitudeToday = () => S.entries.some((e) => isGratitude(e) && sameDay(new Date(e.startedAt), new Date()));
+
   // Pages are kept in true time order (by the moment they were recorded), never by text.
   const when = (e) => { const n = Date.parse(e.startedAt); return Number.isNaN(n) ? 0 : n; };
   function sortEntries(list) { return list.sort((a, b) => when(a) - when(b) || String(a.id).localeCompare(String(b.id))); }
@@ -242,6 +298,7 @@
       bookmarks: Array.isArray(meta.bookmarks) ? meta.bookmarks : [],
       mime: (blob.type || meta.mime || 'audio/mp4').split(';')[0],
       bytes: blob.size,
+      kind: meta.kind === 'gratitude' ? 'gratitude' : undefined,
       source: meta.source || 'recorded',
       importKey: meta.importKey || null,
       createdAt: nowIso()
@@ -683,8 +740,8 @@
       '<button class="iconbtn raised" data-act="settings" aria-label="' + esc(t('settings')) + '">' + I.gear + (needsBackup() ? '<i class="badge-dot" aria-hidden="true"></i>' : '') + '</button></div></header>' +
       dateBar() +
       '<div class="cover-area"><div class="cover-holder">' + coverHtml(false) + '</div>' +
-      '<button class="soft-btn raised" data-act="contents">' + I.book + esc(t('openContents')) +
-      (S.entries.length ? '<span class="muted">' + esc(SEP() + pagesText(S.entries.length)) + '</span>' : '') + '</button></div>' +
+      '<button class="soft-btn raised grat-btn' + (gratitudeToday() ? ' done' : '') + '" data-act="record-gratitude">' +
+      '<span class="grat-ico" aria-hidden="true">' + (gratitudeToday() ? I.check : I.leaf) + '</span>' + esc(t('gratitudeToday')) + '</button></div>' +
       hopeCard() +
       // Visually hidden (not display:none) so iPhone Safari still opens it from the photo circle.
       '<input id="coverfile-home" class="sr-only" type="file" accept="image/*" data-cover-photo>' +
@@ -713,7 +770,7 @@
       cells += '<button class="cal-cell' + (k === todayK ? ' today-cell' : '') + (k === S.calSelected ? ' sel' : '') + '" data-act="cal-day" data-key="' + k + '" aria-label="' + esc(fmtNative(d, cal, { day: 'numeric', month: 'long' })) + '">' +
         '<span class="n">' + esc(fmtNative(d, cal, { day: 'numeric' })) + '</span>' +
         '<span class="n2">' + esc(lang() === 'fa' && !latinGreg(otherCal(cal)) ? num(sec) : String(sec)) + '</span>' +
-        (has ? '<span class="dot" aria-hidden="true"></span>' : '') + '</button>';
+        (has ? '<span class="dot' + (byDay.get(k).some(isGratitude) ? ' gold' : '') + '" aria-hidden="true"></span>' : '') + '</button>';
     });
     const sel = byDay.get(S.calSelected) || [];
     const list = sel.length ? sel.map((e) => '<button class="page-row" data-act="play" data-id="' + esc(e.id) + '">' +
@@ -755,7 +812,7 @@
       '<button class="prow-main" data-act="' + (selecting ? 'sel-toggle' : 'play') + '" data-id="' + esc(e.id) + '">' +
       (selecting ? '<span class="selbox" aria-hidden="true">' + (picked ? I.check : '') + '</span>' : '') +
       '<span class="dtile"><b>' + esc(fmtCal(d, cal, { day: 'numeric' })) + '</b><small>' + esc(fmtCal(d, cal, { month: 'short' })) + '</small></span>' +
-      '<span class="ptxt"><span dir="auto" class="pt' + (e.title ? '' : ' untitled') + '">' + esc(e.title || t('untitledTap')) + '</span>' +
+      '<span class="ptxt"><span dir="auto" class="pt' + (e.title ? '' : ' untitled') + '">' + (isGratitude(e) ? '<i class="grat-mark" aria-label="' + esc(t('gratitude')) + '">' + I.leaf + '</i>' : '') + esc(e.title || t('untitledTap')) + '</span>' +
       '<span class="pm"><i class="mdot ' + moodClass(e.mood) + '" aria-hidden="true"></i>' + esc(fmtLen(e.durationSec) + SEP() + fmtDate(e.startedAt, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span></span></button>' +
       (selecting ? '' :
         '<button class="pbtn edit raised" data-act="edit-entry" data-id="' + esc(e.id) + '" aria-label="' + esc(t('edit')) + '">' + I.pen + '</button>' +
@@ -789,7 +846,8 @@
       const open = ids[i] in S.openMonths ? S.openMonths[ids[i]] : i === 0;
       return '<div class="mgroup raised' + (open ? ' open' : '') + '">' +
         '<button type="button" class="mhead" data-act="toggle-month" data-id="' + esc(ids[i]) + '" aria-expanded="' + open + '"><b>' + esc(g.key) + '</b><span class="muted">' + esc(pagesText(g.items.length)) + '</span>' + I.down + '</button>' +
-        '<div class="plist">' + g.items.map(pageRow).join('') + '</div></div>';
+        '<div class="plist">' + (S.filter === 'gratitude' ? '<button class="month-play" data-act="play-month" data-ids="' + esc(g.items.slice().reverse().map((x) => x.id).join(',')) + '">' + I.play + esc(t('playMonthGratitude', { m: g.key })) + '</button>' : '') +
+        g.items.map(pageRow).join('') + '</div></div>';
     }).join('');
   }
 
@@ -825,13 +883,16 @@
 
   function viewContents() {
     // A journal: every page in date order, folded by month. No notebooks to pick or open.
-    const list = S.entries.slice().reverse();
+    const all = S.entries.slice().reverse();
+    const list = S.filter === 'gratitude' ? all.filter(isGratitude) : all;
     const memory = onThisDay();
+    const chips = all.some(isGratitude) ? '<div class="seg filter-seg"><button data-act="filter" data-f="" aria-pressed="' + (S.filter !== 'gratitude') + '">' + esc(t('all')) + '</button>' +
+      '<button data-act="filter" data-f="gratitude" aria-pressed="' + (S.filter === 'gratitude') + '">' + I.leaf + esc(t('gratitude')) + '</button></div>' : '';
     return '<section class="screen list">' +
       '<header class="topbar"><button class="iconbtn raised flip-rtl" data-act="back" aria-label="' + esc(t('back')) + '">' + I.back + '</button>' +
       '<span class="brand-title grow">' + esc(t('contents')) + '</span></header>' +
-      (S.sel ? selBar(list) : backupBanner()) +
-      (memory && !S.sel ? '<button class="memory raised" data-act="play" data-id="' + esc(memory.e.id) + '"><span class="pbtn play" aria-hidden="true">' + I.play + '</span>' +
+      (S.sel ? selBar(list) : backupBanner() + chips) +
+      (memory && !S.sel && S.filter !== 'gratitude' ? '<button class="memory raised" data-act="play" data-id="' + esc(memory.e.id) + '"><span class="pbtn play" aria-hidden="true">' + I.play + '</span>' +
         '<span class="ptxt"><span class="hc-label">' + esc(t('onThisDay', { when: memory.when })) + '</span><span class="pt" dir="auto">' + esc(entryTitle(memory.e)) + '</span></span></button>' : '') +
       (list.length ? monthGroups(list) : '<div class="empty">' + esc(t('noPagesYet')) + '</div>') +
       '</section>' + dock('contents');
@@ -839,17 +900,19 @@
 
 
   function viewRecorder() {
-    const ch = currentChapter();
+    const grat = Rec.kind === 'gratitude';
     const pageNo = S.entries.length + 1;
-    return '<section class="screen">' +
-      '<div class="rec-head"><span class="ch" dir="auto">' + esc(chTitle(ch)) + '</span>' +
-      '<span class="pg">' + esc(t('pageN', { n: num(pageNo) })) + '</span>' +
+    return '<section class="screen' + (grat ? ' grat' : '') + '">' +
+      '<div class="rec-head">' + (grat ? '<span class="ch">' + I.leaf + esc(t('gratitude')) + '</span>' : '') +
+      '<span class="pg">' + esc(grat ? t('gratitudeHint') : t('pageN', { n: num(pageNo) })) + '</span>' +
       '<span class="muted small">' + esc(fmtLong(Rec.startedAt || new Date().toISOString())) + '</span></div>' +
       '<div class="grow"></div>' +
       '<div class="rec-state"><span class="rec-dot live" data-rec-dot></span><span data-rec-state>' + esc(t('recording')) + '</span></div>' +
       '<div class="timer" data-timer>' + fmtClock(0) + '</div>' +
       '<canvas class="wave" data-wave width="800" height="192" aria-hidden="true"></canvas>' +
       '<div class="note" data-marks>' + esc(t('keepOpen')) + '</div>' +
+      '<button class="music-btn' + (Ambient.on ? ' on' : '') + '" data-act="toggle-music" aria-pressed="' + Ambient.on + '">' + I.note +
+      '<span>' + esc(t('calmMusic')) + '</span><small>' + esc(t('withHeadphones')) + '</small></button>' +
       '<div class="grow"></div>' +
       '<div class="rec-controls">' +
       '<div class="c"><button class="rbtn mark" data-act="rec-mark" aria-label="' + esc(t('mark')) + '">' + I.mark + '</button>' + esc(t('mark')) + '</div>' +
@@ -872,7 +935,8 @@
       return opts.find((m) => MediaRecorder.isTypeSupported(m)) || '';
     },
 
-    async start() {
+    async start(kind) {
+      this.kind = kind || 'page';
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) { toast(t('micUnsupported')); return; }
       try {
         this.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
@@ -1022,9 +1086,11 @@
         durationSec: Math.round(this.elapsedBefore / 1000), bookmarks: this.bookmarks.slice(), interrupted: this.interrupted
       };
       this.chunks = [];
+      Ambient.stop();
       S.view = 'home';
       render();
       if (!blob.size) { safe(DB.dropSession(rec.sessionId)); this.sessionId = null; toast(t('recInterrupted')); return; }
+      if (this.kind === 'gratitude') { saveGratitude(rec); return; }
       openSaveSheet(rec);
     }
   };
@@ -1207,6 +1273,18 @@
       '<button class="text-danger" data-act="discard-rec">' + esc(t('discard')) + '</button></div>',
       null, { modal: true }
     );
+  }
+
+  // Gratitude needs no questions: it is named and dated by itself, and the home button gets its tick.
+  async function saveGratitude(rec) {
+    try {
+      await addEntry({ title: t('gratitude'), kind: 'gratitude', mood: null, chapterId: null,
+        startedAt: rec.startedAt, durationSec: rec.durationSec, bookmarks: rec.bookmarks }, rec.blob);
+      await safe(DB.dropSession(rec.sessionId));
+      Rec.sessionId = null;
+      render();
+      toast(t('gratitudeSaved'));
+    } catch (e) { console.error(e); toast(t('saveFailed')); }
   }
 
   async function saveRecording(later) {
@@ -1715,7 +1793,17 @@
     'cal-next': () => moveMonth(1),
     'cal-mode': (el) => { S.calMode = el.dataset.mode; openCalendar(true); },
     'cal-day': (el) => { S.calSelected = el.dataset.key; openCalendar(true); },
-    'record': () => { if (!audio.paused) stopAudio(); Rec.start(); },
+    'record': () => { if (!audio.paused) stopAudio(); if (Ambient.on) Ambient.prime(); Rec.start('page').then(() => { if (Ambient.on && Rec.active) Ambient.start(); }); },
+    'record-gratitude': () => { if (!audio.paused) stopAudio(); if (Ambient.on) Ambient.prime(); Rec.start('gratitude').then(() => { if (Ambient.on && Rec.active) Ambient.start(); }); },
+    'toggle-music': (el) => { Ambient.toggle(); el.classList.toggle('on', Ambient.on); el.setAttribute('aria-pressed', Ambient.on); },
+    'filter': (el) => { S.filter = el.dataset.f === 'gratitude' ? 'gratitude' : ''; render(); },
+    'play-month': (el) => {
+      const ids = el.dataset.ids.split(',').filter(Boolean);
+      const list = ids.map((id) => S.entries.find((x) => x.id === id)).filter(Boolean);
+      if (!list.length) return;
+      S.queue = list.slice(1).map((e) => e.id); const q = S.queue.slice();
+      openPlayer(list[0], true); S.queue = q;
+    },
     'rec-mark': () => Rec.mark(),
     'rec-pause': () => Rec.togglePause(),
     'rec-stop': () => Rec.stop(),
