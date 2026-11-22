@@ -502,3 +502,24 @@ html[lang='en'] .intro-quote { font-size: 21px; line-height: 1.35; }
 .line-ghost { position: fixed; z-index: 60; pointer-events: none; font-family: var(--title-font); font-size: 20px; line-height: 1.6; color: var(--text); transform-origin: center; }
 .hope-card.landed { animation: landed 0.7s var(--ease) both; }
 @keyframes landed { 0% { box-shadow: 0 0 0 0 rgba(254, 191, 23, 0.55); } 100% { box-shadow: 0 0 0 14px rgba(254, 191, 23, 0); } }
+
+/* Holding a page; selecting pages. */
+.prow { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; transition: background 0.2s; }
+.prow.held { background: rgba(254, 191, 23, 0.18); }
+.prow.picked { background: rgba(47, 160, 90, 0.10); }
+.selbox { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--btn-edge); display: inline-flex; align-items: center; justify-content: center; color: #fff; }
+.prow.picked .selbox { background: #2FA05A; border-color: #2FA05A; }
+.selbox svg { width: 15px; height: 15px; }
+.selbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-radius: 18px; background: var(--surface); flex: none; }
+.selbar b { font-size: 14px; }
+.selbar-btns { display: flex; gap: 6px; }
+.selbar .small-btn { height: 36px; padding: 0 12px; font-size: 13px; }
+.small-btn.danger, .btn-danger { background: var(--danger); color: #fff; border: 0; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); }
+.small-btn.danger[disabled] { opacity: 0.4; }
+.action-list { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 4px; }
+.action { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 16px; background: var(--surface);
+  border: 1px solid var(--btn-edge); box-shadow: 0 2px 0 var(--btn-lip); font-weight: 700; font-size: 15px; color: var(--text); }
+.action svg { width: 20px; height: 20px; color: var(--accent-text); }
+.action.danger { color: var(--danger); }
+.action.danger svg { color: var(--danger); }
+.action:active { transform: translateY(1px); box-shadow: none; }

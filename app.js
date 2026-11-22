@@ -76,6 +76,8 @@
     book: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 7h6"/></svg>',
     cal: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
     camera: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    check: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    trash: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6.5 7l1 13h9l1-13"/><path d="M10 11v5M14 11v5"/></svg>',
     hand: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 14a8 8 0 0 1-8 8"/><path d="M18 11v-1a2 2 0 0 0-4 0"/><path d="M14 10V9a2 2 0 0 0-4 0v1"/><path d="M10 9.5V4a2 2 0 0 0-4 0v10"/><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>',
     spark: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>',
     down: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
@@ -373,6 +375,7 @@
     else if (v === 'welcome') app.innerHTML = viewWelcome();
     else if (v === 'home') app.innerHTML = viewHome();
     else if (v === 'contents') app.innerHTML = viewContents();
+    if (v !== 'contents') S.sel = null;
     else if (v === 'recorder') { app.innerHTML = viewRecorder(); Rec.bindView(); }
     const focus = app.querySelector('[autofocus]');
     if (focus) focus.focus();
@@ -743,14 +746,19 @@
   function pageRow(e) {
     const d = new Date(e.startedAt);
     const cal = defaultCal();
-    return '<div class="prow' + (S.playingId === e.id ? ' playing' : '') + '">' +
-      '<button class="prow-main" data-act="play" data-id="' + esc(e.id) + '">' +
+    const selecting = !!S.sel;
+    const picked = selecting && S.sel.has(e.id);
+    return '<div class="prow' + (S.playingId === e.id ? ' playing' : '') + (picked ? ' picked' : '') + '" data-row="' + esc(e.id) + '">' +
+      '<button class="prow-main" data-act="' + (selecting ? 'sel-toggle' : 'play') + '" data-id="' + esc(e.id) + '">' +
+      (selecting ? '<span class="selbox" aria-hidden="true">' + (picked ? I.check : '') + '</span>' : '') +
       '<span class="dtile"><b>' + esc(fmtCal(d, cal, { day: 'numeric' })) + '</b><small>' + esc(fmtCal(d, cal, { month: 'short' })) + '</small></span>' +
       '<span class="ptxt"><span dir="auto" class="pt' + (e.title ? '' : ' untitled') + '">' + esc(e.title || t('untitledTap')) + '</span>' +
       '<span class="pm"><i class="mdot ' + moodClass(e.mood) + '" aria-hidden="true"></i>' + esc(fmtLen(e.durationSec) + SEP() + fmtDate(e.startedAt, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span></span></button>' +
-      '<button class="pbtn edit raised" data-act="edit-entry" data-id="' + esc(e.id) + '" aria-label="' + esc(t('edit')) + '">' + I.pen + '</button>' +
-      '<button class="pbtn play" data-act="play" data-id="' + esc(e.id) + '" aria-label="' + esc(t('play')) + '">' + I.play + '</button></div>';
+      (selecting ? '' :
+        '<button class="pbtn edit raised" data-act="edit-entry" data-id="' + esc(e.id) + '" aria-label="' + esc(t('edit')) + '">' + I.pen + '</button>' +
+        '<button class="pbtn play" data-act="play" data-id="' + esc(e.id) + '" aria-label="' + esc(t('play')) + '">' + I.play + '</button>') + '</div>';
   }
+
 
   // Pages folded by month: the newest month is open, older months stay closed until tapped.
   function monthGroups(list) {
@@ -773,6 +781,36 @@
     }).join('');
   }
 
+  // Selection mode, reached by holding a page: pick several pages, or all, and delete them together.
+  function selBar(list) {
+    const n = S.sel.size;
+    const all = n === list.length && n > 0;
+    return '<div class="selbar raised"><b>' + esc(t('nSelected', { n: num(n) })) + '</b>' +
+      '<span class="selbar-btns"><button class="small-btn raised" data-act="sel-all">' + esc(all ? t('selectNone') : t('selectAll')) + '</button>' +
+      '<button class="small-btn danger" data-act="sel-delete"' + (n ? '' : ' disabled') + '>' + esc(t('delete')) + '</button>' +
+      '<button class="small-btn raised" data-act="sel-cancel">' + esc(t('cancel')) + '</button></span></div>';
+  }
+
+  // Holding a page opens its actions.
+  function openPageActions(e) {
+    openSheet('<h2 dir="auto">' + esc(entryTitle(e)) + '</h2>' +
+      '<span class="muted small">' + esc(fmtLong(e.startedAt)) + '</span>' +
+      '<div class="action-list">' +
+      '<button class="action raised" data-act="pa-rename" data-id="' + esc(e.id) + '">' + I.pen + '<span>' + esc(t('rename')) + '</span></button>' +
+      '<button class="action raised" data-act="pa-select" data-id="' + esc(e.id) + '">' + I.check + '<span>' + esc(t('select')) + '</span></button>' +
+      '<button class="action raised" data-act="pa-select-all">' + I.check + '<span>' + esc(t('selectAll')) + '</span></button>' +
+      '<button class="action raised danger" data-act="pa-delete" data-id="' + esc(e.id) + '">' + I.trash + '<span>' + esc(t('delete')) + '</span></button>' +
+      '</div><button class="btn btn-ghost" data-act="close-sheet">' + esc(t('close')) + '</button>');
+  }
+
+  // A calm in-app question instead of the browser's pop-up.
+  function confirmDelete(ids) {
+    openSheet('<h2>' + esc(ids.length > 1 ? t('deleteNTitle', { n: num(ids.length) }) : t('delete')) + '</h2>' +
+      '<p class="muted">' + esc(ids.length > 1 ? t('deleteNConfirm', { n: num(ids.length) }) : t('deleteConfirm')) + '</p>' +
+      '<div class="btn-row"><button class="btn btn-danger" data-act="do-delete" data-ids="' + esc(ids.join(',')) + '">' + esc(t('delete')) + '</button>' +
+      '<button class="btn btn-ghost" data-act="close-sheet">' + esc(t('cancel')) + '</button></div>');
+  }
+
   function viewContents() {
     // A journal: every page in date order, folded by month. No notebooks to pick or open.
     const list = S.entries.slice().reverse();
@@ -780,8 +818,8 @@
     return '<section class="screen list">' +
       '<header class="topbar"><button class="iconbtn raised flip-rtl" data-act="back" aria-label="' + esc(t('back')) + '">' + I.back + '</button>' +
       '<span class="brand-title grow">' + esc(t('contents')) + '</span></header>' +
-      backupBanner() +
-      (memory ? '<button class="memory raised" data-act="play" data-id="' + esc(memory.e.id) + '"><span class="pbtn play" aria-hidden="true">' + I.play + '</span>' +
+      (S.sel ? selBar(list) : backupBanner()) +
+      (memory && !S.sel ? '<button class="memory raised" data-act="play" data-id="' + esc(memory.e.id) + '"><span class="pbtn play" aria-hidden="true">' + I.play + '</span>' +
         '<span class="ptxt"><span class="hc-label">' + esc(t('onThisDay', { when: memory.when })) + '</span><span class="pt" dir="auto">' + esc(entryTitle(memory.e)) + '</span></span></button>' : '') +
       (list.length ? monthGroups(list) : '<div class="empty">' + esc(t('noPagesYet')) + '</div>') +
       '</section>' + dock('contents');
@@ -1357,13 +1395,17 @@
     } catch (e) { toast(t('saveFailed')); }
   }
 
-  async function deleteEntry(id) {
-    if (!window.confirm(t('deleteConfirm'))) return;
+  function deleteEntry(id) { closeSheetDom(); confirmDelete([id]); }
+  async function doDelete(ids) {
     try {
-      await removeEntry(id);
-      if (audio.dataset.id === id) { audio.pause(); audio.removeAttribute('src'); delete audio.dataset.id; }
+      for (const id of ids) {
+        await removeEntry(id);
+        if (audio.dataset.id === id) { audio.pause(); audio.removeAttribute('src'); delete audio.dataset.id; }
+      }
+      S.sel = null;
       closeSheet();
       render();
+      toast(t('deletedN', { n: num(ids.length) }));
     } catch (e) { toast(t('saveFailed')); }
   }
 
@@ -1747,6 +1789,24 @@
     'edit-entry': (el) => { const e = S.entries.find((x) => x.id === el.dataset.id); if (e) openEdit(e); },
     'save-edit': (el) => saveEdit(el.dataset.id),
     'delete-entry': (el) => deleteEntry(el.dataset.id),
+    'do-delete': (el) => doDelete(el.dataset.ids.split(',').filter(Boolean)),
+    'pa-rename': (el) => { closeSheetDom(); const e = S.entries.find((x) => x.id === el.dataset.id); if (e) { openEdit(e); setTimeout(() => { const i = sheet() && sheet().querySelector('#ttl'); if (i) { i.focus(); i.select(); } }, 350); } },
+    'pa-select': (el) => { closeSheet(); S.sel = new Set([el.dataset.id]); render(); },
+    'pa-select-all': () => { closeSheet(); S.sel = new Set(S.entries.map((x) => x.id)); render(); },
+    'pa-delete': (el) => { closeSheetDom(); confirmDelete([el.dataset.id]); },
+    'sel-toggle': (el) => {
+      const id = el.dataset.id;
+      if (S.sel.has(id)) S.sel.delete(id); else S.sel.add(id);
+      const keep = app.querySelector('.screen') ? app.querySelector('.screen').scrollTop : 0;
+      render(); const sc = app.querySelector('.screen'); if (sc) sc.scrollTop = keep;
+    },
+    'sel-all': () => {
+      S.sel = S.sel.size === S.entries.length ? new Set() : new Set(S.entries.map((x) => x.id));
+      const keep = app.querySelector('.screen') ? app.querySelector('.screen').scrollTop : 0;
+      render(); const sc = app.querySelector('.screen'); if (sc) sc.scrollTop = keep;
+    },
+    'sel-delete': () => { if (S.sel && S.sel.size) confirmDelete([...S.sel]); },
+    'sel-cancel': () => { S.sel = null; render(); },
     'pick-mood': (el) => { sheetPick('pick-mood', el.getAttribute('aria-pressed') === 'true' ? null : el.dataset.mood); updateMoreSummary(); },
     'pick-chapter': (el) => {
       sheetPick('pick-chapter', el.dataset.id);
@@ -1761,7 +1821,31 @@
     'backup': () => { makeBackup().catch((e) => { console.error(e); toast(t('backupFailed')); }); }
   };
 
+  // Hold a page for half a second to see what you can do with it.
+  let holdTimer = 0; let holdStart = null; let holdFired = false;
+  document.addEventListener('pointerdown', (ev) => {
+    const row = ev.target.closest && ev.target.closest('.prow[data-row]');
+    holdFired = false;
+    if (!row || S.sel || S.view !== 'contents') return;
+    holdStart = { x: ev.clientX, y: ev.clientY };
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => {
+      const e = S.entries.find((x) => x.id === row.dataset.row);
+      if (!e) return;
+      holdFired = true;
+      try { navigator.vibrate && navigator.vibrate(12); } catch (err) { /* ignore */ }
+      row.classList.add('held'); setTimeout(() => row.classList.remove('held'), 300);
+      openPageActions(e);
+    }, 480);
+  });
+  document.addEventListener('pointermove', (ev) => {
+    if (holdStart && Math.hypot(ev.clientX - holdStart.x, ev.clientY - holdStart.y) > 10) { clearTimeout(holdTimer); holdStart = null; }
+  });
+  ['pointerup', 'pointercancel'].forEach((n) => document.addEventListener(n, () => { clearTimeout(holdTimer); holdStart = null; }));
+  document.addEventListener('contextmenu', (ev) => { if (ev.target.closest && ev.target.closest('.prow')) ev.preventDefault(); });
+
   document.addEventListener('click', (ev) => {
+    if (holdFired) { holdFired = false; ev.preventDefault(); ev.stopPropagation(); return; }
     if (ev.target.closest('[data-no-act]')) return; // e.g. the photo circle on the cover opens the photo picker
     const el = ev.target.closest('[data-act]');
     if (el && actions[el.dataset.act]) { ev.preventDefault(); actions[el.dataset.act](el); return; }
