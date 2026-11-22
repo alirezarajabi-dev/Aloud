@@ -1755,7 +1755,7 @@
       if (last) dist = (dist + SPEED * Math.min(0.1, (ts - last) / 1000)) % g.L;
       last = ts;
       const [x, y] = pointAt(g, dist);
-      el.style.transform = 'translate(' + (x - 13).toFixed(1) + 'px,' + (y - 13).toFixed(1) + 'px) rotate(' + ((ts / 1000) * SPIN % 360).toFixed(1) + 'deg)';
+      el.style.transform = 'translate(' + (x - 18).toFixed(1) + 'px,' + (y - 18).toFixed(1) + 'px) rotate(' + ((ts / 1000) * SPIN % 360).toFixed(1) + 'deg)';
       if (!document.hidden) requestAnimationFrame(frame); else last = 0;
     }
     document.addEventListener('visibilitychange', () => { if (!document.hidden) { last = 0; requestAnimationFrame(frame); } });
