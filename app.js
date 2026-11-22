@@ -764,7 +764,7 @@
     }
     // Each month opens and closes on its own; nothing else moves. Only the newest month starts open.
     if (!S.openMonths) S.openMonths = {};
-    const ids = groups.map((g) => S.openChapter + '|' + g.key);
+    const ids = groups.map((g) => g.key);
     return groups.map((g, i) => {
       const open = ids[i] in S.openMonths ? S.openMonths[ids[i]] : i === 0;
       return '<div class="mgroup raised' + (open ? ' open' : '') + '">' +
@@ -774,31 +774,19 @@
   }
 
   function viewContents() {
-    const cur = currentChapter();
-    if (!S.openChapter || !S.chapters.some((c) => c.id === S.openChapter)) S.openChapter = cur ? cur.id : null;
-    const ch = S.chapters.find((c) => c.id === S.openChapter);
-    const list = ch ? entriesOf(ch.id).slice().reverse() : [];
+    // A journal: every page in date order, folded by month. No notebooks to pick or open.
+    const list = S.entries.slice().reverse();
     const memory = onThisDay();
-    const others = orderedChapters().filter((c) => !ch || c.id !== ch.id).reverse();
     return '<section class="screen list">' +
       '<header class="topbar"><button class="iconbtn raised flip-rtl" data-act="back" aria-label="' + esc(t('back')) + '">' + I.back + '</button>' +
-      '<span class="brand-title grow">' + esc(t('contents')) + '</span>' +
-      '<button class="small-btn raised" data-act="new-chapter">' + esc(t('newChapter')) + '</button></header>' +
+      '<span class="brand-title grow">' + esc(t('contents')) + '</span></header>' +
       backupBanner() +
       (memory ? '<button class="memory raised" data-act="play" data-id="' + esc(memory.e.id) + '"><span class="pbtn play" aria-hidden="true">' + I.play + '</span>' +
         '<span class="ptxt"><span class="hc-label">' + esc(t('onThisDay', { when: memory.when })) + '</span><span class="pt" dir="auto">' + esc(entryTitle(memory.e)) + '</span></span></button>' : '') +
-      (ch ? '<div class="chap-head"><span class="ch-names"><small>' + esc(ch === cur ? t('currentChapter') : t('chapter')) + '</small><b dir="auto">' + esc(chTitle(ch)) + '</b></span>' +
-        '<span class="ch-actions">' +
-        (list.length ? '<button class="small-btn dark" data-act="play-chapter" data-id="' + esc(ch.id) + '">' + I.play + esc(t('playChapterShort')) + '</button>' : '') +
-        '<button class="small-btn raised" data-act="rename-chapter" data-id="' + esc(ch.id) + '">' + I.pen + esc(t('edit')) + '</button>' +
-        (list.length ? '' : '<button class="small-btn raised" data-act="delete-chapter" data-id="' + esc(ch.id) + '">' + esc(t('delete')) + '</button>') +
-        '</span></div>' +
-        (list.length ? monthGroups(list) : '<div class="empty">' + esc(t('noPagesYet')) + '</div>') : '') +
-      (others.length ? '<span class="sec-label">' + esc(t('otherChapters')) + '</span>' +
-        others.map((c) => '<button class="chap-link raised" data-act="open-chapter" data-id="' + esc(c.id) + '"><b dir="auto">' + esc(chTitle(c)) + '</b>' +
-          '<span class="muted">' + esc(pagesText(entriesOf(c.id).length)) + '</span>' + '<span class="chev flip-ltr">' + I.back + '</span></button>').join('') : '') +
+      (list.length ? monthGroups(list) : '<div class="empty">' + esc(t('noPagesYet')) + '</div>') +
       '</section>' + dock('contents');
   }
+
 
   function viewRecorder() {
     const ch = currentChapter();
@@ -1144,7 +1132,9 @@
   };
 
   async function resolveChapter() {
+    // The journal is simply ordered by date; pages are no longer filed by hand.
     const pick = sheetValue('pick-chapter');
+    if (!pick) return null;
     if (pick !== '__new') return pick;
     const name = (sheet().querySelector('#newch').value || '').trim();
     if (!name) return currentChapter() ? currentChapter().id : null;
@@ -1160,9 +1150,8 @@
       (rec.interrupted ? '<div class="note">' + esc(t('recInterrupted')) + '</div>' : '') +
       '<div class="field"><label for="ttl">' + esc(t('whatAbout')) + '</label>' +
       '<input id="ttl" class="big-input" type="text" maxlength="200" dir="auto" placeholder="' + esc(t('titleExample')) + '" autofocus enterkeyhint="done"></div>' +
-      '<details class="more"><summary class="raised-soft"><span><b>' + esc(t('moreOptions')) + '</b><small data-more-summary>' + esc(t('moodNone') + SEP() + t('chapter') + ': ' + chTitle(ch)) + '</small></span>' + I.down + '</summary>' +
-      '<div class="more-body"><div class="field"><span class="label">' + esc(t('moodOptional')) + '</span>' + moodButtons(null) + '</div>' +
-      '<div class="field"><span class="label">' + esc(t('whichChapter')) + '</span>' + chapterChips(ch ? ch.id : '__new') + '</div></div></details>' +
+      '<details class="more"><summary class="raised-soft"><span><b>' + esc(t('moreOptions')) + '</b><small data-more-summary>' + esc(t('moodNone')) + '</small></span>' + I.down + '</summary>' +
+      '<div class="more-body"><div class="field"><span class="label">' + esc(t('moodOptional')) + '</span>' + moodButtons(null) + '</div></div></details>' +
       '<button class="btn btn-primary btn-big" data-act="save-rec">' + esc(t('save')) + '</button>' +
       '<div class="sheet-foot"><button class="small-btn raised" data-act="save-rec" data-later="1">' + esc(t('saveUntitled')) + '</button>' +
       '<button class="text-danger" data-act="discard-rec">' + esc(t('discard')) + '</button></div>',
@@ -1213,9 +1202,7 @@
     const el = sheet() && sheet().querySelector('[data-more-summary]');
     if (!el) return;
     const m = sheetValue('pick-mood');
-    const c = sheetValue('pick-chapter');
-    const chName = c === '__new' ? t('newChapterName') : chTitle(S.chapters.find((x) => x.id === c));
-    el.textContent = (m ? t('moods.' + m) : t('moodNone')) + SEP() + t('chapter') + ': ' + chName;
+    el.textContent = m ? t('moods.' + m) : t('moodNone');
   }
 
   // ----- player
@@ -1347,7 +1334,6 @@
       '<input id="when" type="datetime-local" class="when" value="' + esc(localInput(entry.startedAt)) + '">' +
       '<span class="muted tiny">' + esc(fmtLong(entry.startedAt)) + '</span></div>' +
       '<div class="field"><span class="label">' + esc(t('moodOptional')) + '</span>' + moodButtons(entry.mood) + '</div>' +
-      '<div class="field"><span class="label">' + esc(t('whichChapter')) + '</span>' + chapterChips(entry.chapterId) + '</div>' +
       '<div class="btn-row"><button class="btn btn-primary" data-act="save-edit" data-id="' + esc(entry.id) + '">' + esc(t('done')) + '</button>' +
       '<button class="btn btn-ghost" data-act="close-sheet">' + esc(t('close')) + '</button></div>' +
       '<button class="btn btn-danger" data-act="delete-entry" data-id="' + esc(entry.id) + '">' + esc(t('delete')) + '</button>'
@@ -1557,7 +1543,6 @@
     openSheet(
       '<h2>' + esc(t('importTitle')) + '</h2>' +
       '<p class="muted small">' + esc(t('importHint')) + '</p>' +
-      '<div class="field"><span class="label">' + esc(t('importInto')) + '</span>' + chapterChips(ch ? ch.id : '__new') + '</div>' +
       (canPickFolder() ? '' : '<ol class="steps small">' + t('importZipSteps').map((x) => '<li>' + esc(x) + '</li>').join('') + '</ol>') +
       '<div class="btn-row">' +
       (canPickFolder() ? '<label class="btn btn-primary" for="impdir">' + esc(t('chooseFolder')) + '</label>' : '') +
