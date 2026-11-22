@@ -374,6 +374,10 @@
       '<button data-act="set-lang" data-lang="en" aria-pressed="' + (l === 'en') + '">English</button></div></div>' +
       '<div class="grow"></div>' +
       '<button class="btn btn-primary btn-big" data-act="finish-welcome">' + esc(t('open')) + '</button>' +
+      // Moving from Safari to the home-screen app (they keep separate storage on the iPhone): bring the journal back from a backup.
+      '<div class="restore-box"><span class="muted small">' + esc(t('haveBackup')) + '</span>' +
+      '<label class="small-btn raised" for="restorefile-welcome">' + esc(t('restoreFromBackup')) + '</label>' +
+      '<input id="restorefile-welcome" class="sr-only" type="file" accept=".zip,application/zip" data-restore></div>' +
       '</section>';
   }
 
@@ -1301,6 +1305,7 @@
         esc(t(k === 'auto' ? 'themeAutoShort' : k === 'dark' ? 'themeDark' : 'themeLight')) + '</button>').join('') + '</div></div></section>' +
       '<section class="group"><h3>' + esc(t('groupData')) + '</h3>' +
       '<span class="muted small">' + esc(t('backupHint')) + '</span>' +
+      (window.navigator.standalone === false && S.entries.length ? '<span class="note small">' + esc(t('moveHint')) + '</span>' : '') +
       '<span class="muted tiny" data-storage></span>' +
       '<div class="btn-row"><button class="small-btn dark" data-act="backup">' + esc(t('backupNow')) + '</button>' +
       '<label class="small-btn raised" for="restorefile">' + esc(t('restore')) + '</label>' +
@@ -1342,11 +1347,11 @@
       const rec = await DB.get('audio', e.id);
       if (!rec) continue;
       const name = backupFileName(e);
-      files.push({ name, data: new Uint8Array(await rec.blob.arrayBuffer()), date: new Date(e.startedAt) });
+      files.push({ name, blob: rec.blob, size: rec.blob.size, crc: await window.RZip.blobCrc(rec.blob), date: new Date(e.startedAt) });
       manifest.entries.push(Object.assign({}, e, { file: name }));
     }
     const photo = await DB.get('kv', 'coverPhoto');
-    if (photo && photo.blob) { files.push({ name: 'cover.jpg', data: new Uint8Array(await photo.blob.arrayBuffer()) }); manifest.coverPhoto = 'cover.jpg'; }
+    if (photo && photo.blob) { files.push({ name: 'cover.jpg', blob: photo.blob, size: photo.blob.size, crc: await window.RZip.blobCrc(photo.blob) }); manifest.coverPhoto = 'cover.jpg'; }
     files.unshift({ name: 'journal.json', data: new TextEncoder().encode(JSON.stringify(manifest, null, 1)) });
     const blob = new Blob(window.RZip.zipParts(files), { type: 'application/zip' });
     const fname = 'aloud-backup-' + nowIso().slice(0, 10) + '.zip';
@@ -1371,14 +1376,18 @@
     showStorage();
   }
 
+  // Restores from a backup .zip, reading one recording at a time (fine for large journals).
   async function restoreBackup(file) {
     try {
-      const items = window.RZip.unzip(new Uint8Array(await file.arrayBuffer()));
-      const byName = new Map(items.map((i) => [i.name, i.data]));
-      const manifest = JSON.parse(new TextDecoder().decode(byName.get('journal.json')));
+      toast(t('readingZip'));
+      const list = await window.RZip.blobEntries(file);
+      const byName = new Map(list.map((i) => [i.name, i]));
+      const jm = byName.get('journal.json');
+      if (!jm) throw new Error('not_aloud');
+      const manifest = JSON.parse(await (await jm.blob('application/json')).text());
       if (!manifest || manifest.app !== 'aloud') throw new Error('not_aloud');
       if (manifest.coverPhoto && byName.get(manifest.coverPhoto) && !S.coverUrl) {
-        await DB.put('kv', { blob: new Blob([byName.get(manifest.coverPhoto)], { type: 'image/jpeg' }) }, 'coverPhoto');
+        await DB.put('kv', { blob: await byName.get(manifest.coverPhoto).blob('image/jpeg') }, 'coverPhoto');
         await loadCoverPhoto();
       }
       for (const ch of manifest.chapters || []) {
@@ -1387,20 +1396,23 @@
       let added = 0;
       for (const e of manifest.entries || []) {
         if (S.entries.some((x) => x.id === e.id)) continue;
-        const data = byName.get(e.file);
-        if (!data) continue;
+        const item = byName.get(e.file);
+        if (!item) continue;
         const entry = Object.assign({}, e);
         delete entry.file;
-        const blob = new Blob([data], { type: entry.mime || 'audio/mp4' });
+        const blob = await item.blob(entry.mime || 'audio/mp4');
         await DB.tx(['entries', 'audio'], 'readwrite', ([es, as]) => { es.put(entry); as.put({ id: entry.id, blob }); });
         S.entries.push(entry);
         added++;
       }
       S.entries.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
-      if (!S.settings.name && manifest.settings && manifest.settings.name) await putSettings({ name: manifest.settings.name, lang: manifest.settings.lang || lang() });
+      const ms = manifest.settings || {};
+      if (!S.settings.name && ms.name) await putSettings({ name: ms.name, nameEn: ms.nameEn || '', lang: ms.lang || lang(), theme: ms.theme || S.settings.theme });
+      await askPersistence();
       toast(t('restored', { n: num(added) }));
-      closeSheet();
+      closeSheetDom();
       S.view = S.settings.name ? 'home' : 'welcome';
+      try { history.replaceState({ view: S.view }, ''); } catch (e) { /* ignore */ }
       render();
     } catch (e) {
       console.error(e);

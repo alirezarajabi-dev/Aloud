@@ -432,3 +432,5 @@ html[lang='en'] .intro-quote { font-size: 21px; line-height: 1.35; }
 .cover-hint { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); margin-top: -4px; }
 .cover-hint svg { width: 13px; height: 13px; color: var(--gilt); }
 .cover-area { gap: 10px; }
+
+.restore-box { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }

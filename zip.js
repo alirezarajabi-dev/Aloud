@@ -36,8 +36,10 @@
     let offset = 0;
     files.forEach((f) => {
       const name = enc.encode(f.name);
-      const data = f.data;
-      const crc = crcDone(crc32(data));
+      // A file is either bytes in memory (data) or a Blob with its size and CRC already known,
+      // so a large journal never has to be held in memory all at once.
+      const data = f.blob ? { length: f.size } : f.data;
+      const crc = f.blob ? f.crc : crcDone(crc32(data));
       const d = f.date || new Date();
       const local = new DataView(new ArrayBuffer(30));
       local.setUint32(0, 0x04034b50, true);
@@ -51,7 +53,7 @@
       local.setUint32(22, data.length, true);
       local.setUint16(26, name.length, true);
       local.setUint16(28, 0, true);
-      parts.push(new Uint8Array(local.buffer), name, data);
+      parts.push(new Uint8Array(local.buffer), name, f.blob || data);
 
       const cen = new DataView(new ArrayBuffer(46));
       cen.setUint32(0, 0x02014b50, true);
@@ -167,7 +169,16 @@
     return out;
   }
 
-  const api = { zipParts, unzip, blobEntries, crc32: (b) => crcDone(crc32(b)) };
+  // CRC of a Blob, read in 4 MB slices.
+  async function blobCrc(blob) {
+    let c = 0xFFFFFFFF;
+    for (let off = 0; off < blob.size; off += 4194304) {
+      c = crc32(new Uint8Array(await blob.slice(off, off + 4194304).arrayBuffer()), c);
+    }
+    return crcDone(c);
+  }
+
+  const api = { zipParts, unzip, blobEntries, blobCrc, crc32: (b) => crcDone(crc32(b)) };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RZip = api;
 })(typeof self !== 'undefined' ? self : this);

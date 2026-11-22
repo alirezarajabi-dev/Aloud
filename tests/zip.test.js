@@ -70,3 +70,17 @@ test('reads a compressed zip (like a folder zipped in the Files app) entry by en
   const bytes = new Uint8Array(await blob.arrayBuffer());
   assert.strictEqual(bytes[257], 1);
 });
+
+test('a backup built from Blobs (no full copy in memory) is a valid zip', async () => {
+  const audio = new Blob([new Uint8Array(300000).map((_, i) => i % 251)], { type: 'audio/mp4' });
+  const parts = RZip.zipParts([
+    { name: 'journal.json', data: new TextEncoder().encode('{"app":"aloud"}') },
+    { name: 'audio/a.m4a', blob: audio, size: audio.size, crc: await RZip.blobCrc(audio) }
+  ]);
+  const zip = new Blob(parts);
+  const entries = await RZip.blobEntries(zip);
+  const back = await entries.find((e) => e.name === 'audio/a.m4a').blob('audio/mp4');
+  assert.strictEqual(back.size, audio.size);
+  const all = RZip.unzip(new Uint8Array(await zip.arrayBuffer())); // also passes the CRC check
+  assert.strictEqual(all.length, 2);
+});
