@@ -135,6 +135,15 @@
     }
   };
   const safe = (p) => p.catch((e) => { console.warn(e); });
+  // On iPhone a picked file (or a slice of a backup zip) is only borrowed: after the app restarts it can vanish.
+  // Copying the bytes makes the phone keep its own copy.
+  async function ownCopy(blob, type) {
+    return new Blob([await blob.arrayBuffer()], { type: type || blob.type || '' });
+  }
+  async function readable(rec) {
+    if (!rec || !rec.blob) return false;
+    try { await rec.blob.slice(0, 16).arrayBuffer(); return true; } catch (e) { return false; }
+  }
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   const nowIso = () => new Date().toISOString();
 
@@ -231,7 +240,8 @@
       importKey: meta.importKey || null,
       createdAt: nowIso()
     };
-    await DB.tx(['entries', 'audio'], 'readwrite', ([es, as]) => { es.put(entry); as.put({ id: entry.id, blob }); });
+    const own = await ownCopy(blob, entry.mime);
+    await DB.tx(['entries', 'audio'], 'readwrite', ([es, as]) => { es.put(entry); as.put({ id: entry.id, blob: own }); });
     S.entries.push(entry);
     S.entries.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
     return entry;
@@ -1411,14 +1421,16 @@
       }
       let added = 0;
       for (const e of manifest.entries || []) {
-        if (S.entries.some((x) => x.id === e.id)) continue;
         const item = byName.get(e.file);
         if (!item) continue;
-        const entry = Object.assign({}, e);
+        const have = S.entries.find((x) => x.id === e.id);
+        // A page already here is kept, unless its sound was lost — then the backup's copy repairs it.
+        if (have && await readable(await DB.get('audio', e.id))) continue;
+        const entry = have || Object.assign({}, e);
         delete entry.file;
-        const blob = await item.blob(entry.mime || 'audio/mp4');
+        const blob = await ownCopy(await item.blob(entry.mime || 'audio/mp4'), entry.mime || 'audio/mp4');
         await DB.tx(['entries', 'audio'], 'readwrite', ([es, as]) => { es.put(entry); as.put({ id: entry.id, blob }); });
-        S.entries.push(entry);
+        if (!have) S.entries.push(entry);
         added++;
       }
       S.entries.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
