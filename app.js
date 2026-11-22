@@ -762,11 +762,11 @@
       const last = groups[groups.length - 1];
       if (last && last.key === key) last.items.push(e); else groups.push({ key, items: [e] });
     }
-    // One month open at a time: opening a month closes the others, so the list never grows into a long scroll.
+    // Each month opens and closes on its own; nothing else moves. Only the newest month starts open.
+    if (!S.openMonths) S.openMonths = {};
     const ids = groups.map((g) => S.openChapter + '|' + g.key);
-    if (!ids.includes(S.openMonth)) S.openMonth = S.openMonth === '' ? '' : ids[0];
     return groups.map((g, i) => {
-      const open = ids[i] === S.openMonth;
+      const open = ids[i] in S.openMonths ? S.openMonths[ids[i]] : i === 0;
       return '<div class="mgroup raised' + (open ? ' open' : '') + '">' +
         '<button type="button" class="mhead" data-act="toggle-month" data-id="' + esc(ids[i]) + '" aria-expanded="' + open + '"><b>' + esc(g.key) + '</b><span class="muted">' + esc(pagesText(g.items.length)) + '</span>' + I.down + '</button>' +
         '<div class="plist">' + g.items.map(pageRow).join('') + '</div></div>';
@@ -1732,15 +1732,11 @@
     'rename-chapter': (el) => openChapterName(S.chapters.find((c) => c.id === el.dataset.id)),
     'new-chapter': () => openChapterName(null),
     'toggle-month': (el) => {
-      const id = el.dataset.id;
-      const opening = S.openMonth !== id;
-      S.openMonth = opening ? id : '';
-      document.querySelectorAll('.mgroup').forEach((g) => {
-        const h = g.querySelector('.mhead');
-        const on = opening && h.dataset.id === id;
-        g.classList.toggle('open', on); h.setAttribute('aria-expanded', on);
-      });
-      if (opening) requestAnimationFrame(() => el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+      if (!S.openMonths) S.openMonths = {};
+      const g = el.closest('.mgroup');
+      const on = !g.classList.contains('open');
+      g.classList.toggle('open', on); el.setAttribute('aria-expanded', on);
+      S.openMonths[el.dataset.id] = on;
     },
     'toggle-play': () => { if (audio.paused) safe(audio.play()); else audio.pause(); },
     'stop-audio': () => stopAudio(),
