@@ -450,3 +450,8 @@ html[lang='en'] .intro-quote { font-size: 21px; line-height: 1.35; }
 .cover-area { gap: 10px; }
 
 .restore-box { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+
+/* Gregorian dates inside the Persian interface are written in English, left to right. */
+.cal-month[dir='ltr'] { font-family: 'Kaushan Script', cursive; }
+.cal-grid.latin, .cal-month2[dir='ltr'], .db-text small[dir='ltr'] { font-family: Manrope, system-ui, sans-serif; }
+.db-text small[dir='ltr'] { text-align: right; }

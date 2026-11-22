@@ -492,11 +492,10 @@
     const words = quote.split(' ').map((w) => '<span class="w">' + esc(w) + '</span>').join(' ');
     wrap.innerHTML = '<div class="intro-book"><div class="intro-page">' + cornersHtml() +
       '<img class="orn-head" src="orn/headpiece.svg" alt="" aria-hidden="true"><span class="eyebrow">' + esc(fmtCal(new Date(), defaultCal(), { weekday: 'long', day: 'numeric', month: 'long' })) + '</span>' +
-      '<button type="button" class="reveal-btn" data-reveal>' + I.spark + '<span>' + esc(t('revealLine')) + '</span></button>' +
       '<div class="intro-quote" dir="auto">' + sparks + '<span class="q-mark" aria-hidden="true">“</span><span class="q-text">' + words + '</span></div>' +
-      '<button type="button" class="btn btn-primary intro-go" data-go>' + esc(t('startJournal')) + '</button></div>' +
+      '</div>' +
       '<div class="intro-cover">' + coverHtml(true) + '</div></div>' +
-      '<button type="button" class="intro-skip" data-skip>' + esc(t('skip')) + '</button>';
+      '<button type="button" class="intro-skip" data-skip>' + esc(t('close')) + '</button>';
     document.body.appendChild(wrap);
     const timers = [];
     let closing = false;
@@ -538,13 +537,14 @@
     const page = wrap.querySelector('.intro-page');
     page.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (e.target.closest('[data-go]')) { closeBook(); return; }
+      if (e.target.closest('[data-go]') || wrap.classList.contains('revealed')) { closeBook(); return; }
       reveal();
     });
     wrap.querySelector('[data-skip]').addEventListener('click', (e) => { e.stopPropagation(); closing = true; leave(); });
     if (calm) wrap.classList.add('open', 'calm');
     else timers.push(setTimeout(() => wrap.classList.add('open'), 750));
-    timers.push(setTimeout(() => wrap.classList.add('ready'), calm ? 0 : 1900));
+    // As soon as the cover opens, today's line appears by itself — no extra tap.
+    timers.push(setTimeout(() => { wrap.classList.add('ready'); reveal(); }, calm ? 0 : 1900));
   }
 
   // ----- calendar helpers (Persian/Solar Hijri and Gregorian, via the browser's own calendars)
@@ -563,6 +563,16 @@
     const out = new Intl.DateTimeFormat(loc, opts).format(date);
     return lang() === 'fa' ? out.replace(/,/g, '،') : out;
   }
+  // In Persian, the Gregorian calendar is shown the way it is written: in English, left to right.
+  const latinGreg = (cal) => cal === 'gregory' && lang() === 'fa';
+  function fmtNative(date, cal, opts) {
+    return latinGreg(cal) ? new Intl.DateTimeFormat('en-US-u-ca-gregory', opts).format(date) : fmtCal(date, cal, opts);
+  }
+  // "October – November 2026" / "آبان – آذر ۱۴۰۵"
+  function monthSpan(a, b, cal) {
+    const m1 = fmtNative(a, cal, { month: 'long' }); const m2 = fmtNative(b, cal, { month: 'long' }); const y = fmtNative(b, cal, { year: 'numeric' });
+    return (m1 === m2 ? m1 : m1 + ' – ' + m2) + ' ' + y;
+  }
   const otherCal = (cal) => (cal === 'persian' ? 'gregory' : 'persian');
   const defaultCal = () => (lang() === 'fa' ? 'persian' : 'gregory');
 
@@ -573,7 +583,7 @@
     return '<button class="datebar raised" data-act="calendar">' +
       // Weekday first, then the date, built by hand: the Persian locale would put the weekday last.
       '<span class="db-text"><b>' + esc(fmtCal(now, main, { weekday: lang() === 'fa' ? 'long' : 'short' }) + (lang() === 'fa' ? '، ' : ', ') + fmtCal(now, main, { day: 'numeric', month: lang() === 'fa' ? 'long' : 'short', year: 'numeric' })) + '</b>' +
-      '<small>' + esc(fmtCal(now, second, { day: 'numeric', month: 'long', year: 'numeric' })) + '</small></span>' +
+      '<small dir="' + (latinGreg(second) ? 'ltr' : 'auto') + '">' + esc(fmtNative(now, second, { day: 'numeric', month: 'long', year: 'numeric' })) + '</small></span>' +
       '<span class="db-side"><span class="db-time" data-clock>' + esc(fmtCal(now, main, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span>' +
       '<span class="tag">' + I.cal + esc(t('calendar')) + '</span></span></button>';
   }
@@ -626,16 +636,16 @@
     S.entries.forEach((e) => { const k = dayKey(new Date(e.startedAt)); byDay.set(k, (byDay.get(k) || []).concat(e)); });
     const todayK = dayKey(new Date());
     const wk = [];
-    for (let i = 0; i < 7; i++) wk.push(fmtCal(addDays(new Date(2026, 0, 4 + weekStart), i), cal, { weekday: 'narrow' }));
+    for (let i = 0; i < 7; i++) wk.push(fmtNative(addDays(new Date(2026, 0, 4 + weekStart), i), cal, { weekday: latinGreg(cal) ? 'short' : 'narrow' }));
     let cells = '';
     for (let i = 0; i < lead; i++) cells += '<span class="cal-cell empty"></span>';
     days.forEach((d) => {
       const k = dayKey(d);
       const has = byDay.has(k);
       const sec = calParts(d, otherCal(cal)).d;
-      cells += '<button class="cal-cell' + (k === todayK ? ' today-cell' : '') + (k === S.calSelected ? ' sel' : '') + '" data-act="cal-day" data-key="' + k + '" aria-label="' + esc(fmtCal(d, cal, { day: 'numeric', month: 'long' })) + '">' +
-        '<span class="n">' + esc(fmtCal(d, cal, { day: 'numeric' })) + '</span>' +
-        '<span class="n2">' + esc(lang() === 'fa' ? num(sec) : String(sec)) + '</span>' +
+      cells += '<button class="cal-cell' + (k === todayK ? ' today-cell' : '') + (k === S.calSelected ? ' sel' : '') + '" data-act="cal-day" data-key="' + k + '" aria-label="' + esc(fmtNative(d, cal, { day: 'numeric', month: 'long' })) + '">' +
+        '<span class="n">' + esc(fmtNative(d, cal, { day: 'numeric' })) + '</span>' +
+        '<span class="n2">' + esc(lang() === 'fa' && !latinGreg(otherCal(cal)) ? num(sec) : String(sec)) + '</span>' +
         (has ? '<span class="dot" aria-hidden="true"></span>' : '') + '</button>';
     });
     const sel = byDay.get(S.calSelected) || [];
@@ -645,12 +655,12 @@
       : '<div class="empty small">' + esc(t('noPagesThisDay')) + '</div>';
     openSheet(
       '<div class="cal-head"><button class="iconbtn flip-rtl" data-act="cal-prev" aria-label="' + esc(t('prevMonth')) + '">' + I.back + '</button>' +
-      '<div class="cal-title"><span class="cal-month">' + esc(fmtCal(start, cal, { month: 'long', year: 'numeric' })) + '</span>' +
-      '<span class="cal-month2">' + esc(fmtCal(start, otherCal(cal), { month: 'long' }) + ' – ' + fmtCal(days[days.length - 1], otherCal(cal), { month: 'long', year: 'numeric' })) + '</span></div>' +
+      '<div class="cal-title"><span class="cal-month" dir="' + (latinGreg(cal) ? 'ltr' : 'auto') + '">' + esc(fmtNative(start, cal, { month: 'long' }) + ' ' + fmtNative(start, cal, { year: 'numeric' })) + '</span>' +
+      '<span class="cal-month2" dir="' + (latinGreg(otherCal(cal)) ? 'ltr' : 'rtl') + '">' + esc(monthSpan(start, days[days.length - 1], otherCal(cal))) + '</span></div>' +
       '<button class="iconbtn flip-ltr" data-act="cal-next" aria-label="' + esc(t('nextMonth')) + '">' + I.back + '</button></div>' +
       '<div class="seg"><button data-act="cal-mode" data-mode="persian" aria-pressed="' + (cal === 'persian') + '">' + esc(t('solar')) + '</button>' +
       '<button data-act="cal-mode" data-mode="gregory" aria-pressed="' + (cal === 'gregory') + '">' + esc(t('gregorian')) + '</button></div>' +
-      '<div class="cal-grid" role="grid">' + wk.map((w) => '<span class="cal-wd">' + esc(w) + '</span>').join('') + cells + '</div>' +
+      '<div class="cal-grid' + (latinGreg(cal) ? ' latin' : '') + '" role="grid" dir="' + (latinGreg(cal) || lang() === 'en' ? 'ltr' : 'rtl') + '">' + wk.map((w) => '<span class="cal-wd">' + esc(w) + '</span>').join('') + cells + '</div>' +
       '<div>' + list + '</div>' +
       '<button class="btn btn-ghost" data-act="close-sheet">' + esc(t('close')) + '</button>'
     );
