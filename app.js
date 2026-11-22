@@ -920,6 +920,9 @@
     }
   };
 
+  // In automatic mode the screen turns dark at 7 pm and light at 7 am, even while the app stays open.
+  setInterval(() => { if (!Rec.active && document.visibilityState === 'visible') applyLangTheme(); }, 60000);
+
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       if (Rec.active && !Rec.wake) Rec.lockScreen();
@@ -1344,13 +1347,13 @@
       '<input id="setname" type="text" maxlength="60" dir="auto" value="' + esc(S.settings.name || '') + '"></div>' +
       '<div class="field"><label for="setnameen">' + esc(t('nameEnLabel')) + '</label>' +
       '<input id="setnameen" type="text" maxlength="60" dir="ltr" autocomplete="off" placeholder="Alireza" value="' + esc(S.settings.nameEn || '') + '"></div></section>' +
-      '<section class="group"><h3>' + esc(t('groupLook')) + '</h3>' +
-      '<div class="field"><span class="label">' + esc(t('language')) + '</span><div class="seg">' +
+      '<section class="group"><h3>' + esc(t('groupLang')) + '</h3><div class="seg">' +
       '<button data-act="set-lang" data-lang="fa" aria-pressed="' + (lang() === 'fa') + '">فارسی</button>' +
-      '<button data-act="set-lang" data-lang="en" aria-pressed="' + (lang() === 'en') + '">English</button></div></div>' +
-      '<div class="field"><span class="label">' + esc(t('theme')) + '</span><div class="seg three">' +
+      '<button data-act="set-lang" data-lang="en" aria-pressed="' + (lang() === 'en') + '">English</button></div></section>' +
+      '<section class="group"><h3>' + esc(t('theme')) + '</h3><div class="seg three">' +
       ['light', 'dark', 'auto'].map((k) => '<button data-act="set-theme" data-theme="' + k + '" aria-pressed="' + (th === k) + '">' +
-        esc(t(k === 'auto' ? 'themeAutoShort' : k === 'dark' ? 'themeDark' : 'themeLight')) + '</button>').join('') + '</div></div></section>' +
+        esc(t(k === 'auto' ? 'themeAutoShort' : k === 'dark' ? 'themeDark' : 'themeLight')) + '</button>').join('') + '</div>' +
+      '<p class="hint">' + esc(t(th === 'auto' ? 'themeAutoHint' : th === 'dark' ? 'themeDarkHint' : 'themeLightHint')) + '</p></section>' +
       '<section class="group"><h3>' + esc(t('groupData')) + '</h3>' +
       '<span class="muted small">' + esc(t('backupHint')) + '</span>' +
       (window.navigator.standalone === false && S.entries.length ? '<span class="note small">' + esc(t('moveHint')) + '</span>' : '') +
@@ -1624,6 +1627,8 @@
     'set-theme': async (el) => {
       S.settings.theme = el.dataset.theme; applyLangTheme();
       sheet().querySelectorAll('[data-act="set-theme"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.theme === el.dataset.theme)));
+      const hint = el.closest('.group') && el.closest('.group').querySelector('.hint');
+      if (hint) hint.textContent = t(el.dataset.theme === 'auto' ? 'themeAutoHint' : el.dataset.theme === 'dark' ? 'themeDarkHint' : 'themeLightHint');
       await safe(putSettings({ theme: el.dataset.theme }));
     },
     'finish-welcome': async (el) => {
