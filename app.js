@@ -595,15 +595,16 @@
   function seenToday() { try { return localStorage.getItem('aloud-seen') === todayKey(); } catch (e) { return true; } }
   function markSeen() { try { localStorage.setItem('aloud-seen', todayKey()); localStorage.setItem('aloud-learned', '1'); } catch (e) { /* private mode */ } }
   function learned() { try { return localStorage.getItem('aloud-learned') === '1'; } catch (e) { return true; } }
+  // A small switch at the book's corner: off each new morning, green once today's line has been read.
+  function bookSwitch() {
+    return '<button class="hope-switch' + (seenToday() ? ' on' : '') + '" data-act="open-book" aria-label="' + esc(t('openBook')) + '"><span class="knob"></span>' +
+      // The tapping hand only teaches the first time; once the book has been opened, it never comes back.
+      (learned() ? '' : '<span class="tap-cue" aria-hidden="true"><i class="ripple"></i><i class="ripple r2"></i>' + I.hand + '</span>') + '</button>';
+  }
   function hopeCard() {
     const line = todayHope();
     if (!line) return '';
-    if (!seenToday()) {
-      return '<div class="hope-card raised locked"><span class="hc-label"><i aria-hidden="true"></i>' + esc(t('todaysLine')) + '</span>' +
-        '<button class="hope-switch" data-act="open-book" aria-label="' + esc(t('openBook')) + '"><span class="knob"></span>' +
-        // The tapping hand only teaches the first time; once the book has been opened, it never comes back.
-        (learned() ? '' : '<span class="tap-cue" aria-hidden="true"><i class="ripple"></i><i class="ripple r2"></i>' + I.hand + '</span>') + '</button></div>';
-    }
+    if (!seenToday()) return ''; // waits behind the switch on the book until opened today
     return '<div class="hope-card raised"><span class="hc-label"><i aria-hidden="true"></i>' + esc(t('todaysLine')) + '</span>' +
       '<span class="hc-text" data-hope dir="auto">' + esc(line) + '</span>' +
       '<button class="link-btn" data-act="next-hope">' + I.fwd + esc(t('anotherLine')) + '</button></div>';
@@ -628,7 +629,7 @@
       '<div class="top-actions">' + langPill() +
       '<button class="iconbtn raised" data-act="settings" aria-label="' + esc(t('settings')) + '">' + I.gear + (needsBackup() ? '<i class="badge-dot" aria-hidden="true"></i>' : '') + '</button></div></header>' +
       dateBar() +
-      '<div class="cover-area"><div class="cover-holder">' + coverHtml(false) + '</div>' +
+      '<div class="cover-area"><div class="cover-holder">' + coverHtml(false) + bookSwitch() + '</div>' +
       '<button class="soft-btn raised" data-act="contents">' + I.book + esc(t('openContents')) +
       (S.entries.length ? '<span class="muted">' + esc(SEP() + pagesText(S.entries.length)) + '</span>' : '') + '</button></div>' +
       hopeCard() +
@@ -1614,7 +1615,7 @@
   const actions = {
     'contents': () => go('contents'),
     'open-book': (el) => {
-      if (el && el.classList && el.classList.contains('hope-switch')) { el.classList.add('on'); setTimeout(() => playIntro(true), 380); return; }
+      if (el && el.classList && el.classList.contains('hope-switch') && !el.classList.contains('on')) { el.classList.add('on'); setTimeout(() => playIntro(true), 380); return; }
       playIntro(true);
     },
     'home': () => go('home'),
