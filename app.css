@@ -230,6 +230,14 @@ html[lang='en'] .cover .t2.long { font-size: 9cqh; }
 .pbtn { width: 40px; height: 40px; border-radius: 20px; border: 0; display: inline-flex; align-items: center; justify-content: center; flex: none; padding: 0; color: var(--text); }
 .pbtn svg { width: 15px; height: 15px; }
 .pbtn.play { background: var(--gold); color: var(--navy); box-shadow: 0 2px 0 var(--gilt); }
+.mgroup { border-radius: 20px; overflow: hidden; flex: none; }
+.mgroup summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; }
+.mgroup summary::-webkit-details-marker { display: none; }
+.mgroup summary b { flex: 1; font-size: 15px; }
+.mgroup summary .muted { font-size: 12px; }
+.mgroup summary svg { width: 18px; height: 18px; color: var(--accent-text); transition: transform 0.2s; }
+.mgroup[open] summary svg { transform: rotate(180deg); }
+.mgroup .plist { border-radius: 0; border-top: 1px solid var(--line); }
 .sec-label { font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 4px; }
 .chap-link { all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-soft); box-sizing: border-box; }
 .chap-link b { flex: 1; font-size: 15px; font-weight: 700; min-width: 0; }

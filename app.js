@@ -680,6 +680,26 @@
       '<button class="pbtn play" data-act="play" data-id="' + esc(e.id) + '" aria-label="' + esc(t('play')) + '">' + I.play + '</button></div>';
   }
 
+  // Pages folded by month: the newest month is open, older months stay closed until tapped.
+  function monthGroups(list) {
+    const cal = defaultCal();
+    const groups = [];
+    for (const e of list) {
+      const d = new Date(e.startedAt);
+      const key = fmtCal(d, cal, { month: 'long' }) + ' ' + fmtCal(d, cal, { year: 'numeric' });
+      const last = groups[groups.length - 1];
+      if (last && last.key === key) last.items.push(e); else groups.push({ key, items: [e] });
+    }
+    if (!S.openMonths) S.openMonths = {};
+    return groups.map((g, i) => {
+      const id = S.openChapter + '|' + g.key;
+      const open = id in S.openMonths ? S.openMonths[id] : i === 0;
+      return '<details class="mgroup raised"' + (open ? ' open' : '') + ' data-month="' + esc(id) + '">' +
+        '<summary><b>' + esc(g.key) + '</b><span class="muted">' + esc(pagesText(g.items.length)) + '</span>' + I.down + '</summary>' +
+        '<div class="plist">' + g.items.map(pageRow).join('') + '</div></details>';
+    }).join('');
+  }
+
   function viewContents() {
     const cur = currentChapter();
     if (!S.openChapter || !S.chapters.some((c) => c.id === S.openChapter)) S.openChapter = cur ? cur.id : null;
@@ -700,7 +720,7 @@
         '<button class="small-btn raised" data-act="rename-chapter" data-id="' + esc(ch.id) + '">' + I.pen + esc(t('edit')) + '</button>' +
         (list.length ? '' : '<button class="small-btn raised" data-act="delete-chapter" data-id="' + esc(ch.id) + '">' + esc(t('delete')) + '</button>') +
         '</span></div>' +
-        (list.length ? '<div class="plist raised">' + list.map(pageRow).join('') + '</div>' : '<div class="empty">' + esc(t('noPagesYet')) + '</div>') : '') +
+        (list.length ? monthGroups(list) : '<div class="empty">' + esc(t('noPagesYet')) + '</div>') : '') +
       (others.length ? '<span class="sec-label">' + esc(t('otherChapters')) + '</span>' +
         others.map((c) => '<button class="chap-link raised" data-act="open-chapter" data-id="' + esc(c.id) + '"><b dir="auto">' + esc(chTitle(c)) + '</b>' +
           '<span class="muted">' + esc(pagesText(entriesOf(c.id).length)) + '</span>' + '<span class="chev flip-ltr">' + I.back + '</span></button>').join('') : '') +
@@ -1691,6 +1711,10 @@
     }
   });
 
+  document.addEventListener('toggle', (ev) => {
+    const d = ev.target;
+    if (d && d.matches && d.matches('details[data-month]')) { if (!S.openMonths) S.openMonths = {}; S.openMonths[d.dataset.month] = d.open; }
+  }, true);
   document.addEventListener('change', (ev) => {
     if (ev.target.matches('[data-import]') && ev.target.files && ev.target.files.length) runImport(ev.target.files);
     if (ev.target.matches('[data-restore]') && ev.target.files && ev.target.files[0]) restoreBackup(ev.target.files[0]);
