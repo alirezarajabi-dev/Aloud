@@ -460,12 +460,12 @@ html[lang='en'] .intro-quote { font-size: 21px; line-height: 1.35; }
 .hope-card.locked { align-items: center; gap: 10px; padding: 12px 16px 16px; }
 .hope-card.locked .hc-label { align-self: flex-start; }
 .hope-switch { all: unset; position: relative; cursor: pointer; width: 112px; height: 50px; border-radius: 999px; box-sizing: border-box;
-  background: var(--green); border: 3px solid var(--bg); outline: 2px solid var(--green);
+  background: #D9D2C3; border: 3px solid var(--bg); outline: 2px solid #BDB3A0;
   box-shadow: 0 3px 0 rgba(12, 27, 46, 0.25), 0 8px 18px rgba(12, 27, 46, 0.18); -webkit-tap-highlight-color: transparent; }
-.hope-switch .knob { position: absolute; top: 4px; inset-inline-start: 4px; width: 36px; height: 36px; border-radius: 50%; background: #FBF8F1;
+.hope-switch .knob { position: absolute; top: 4px; inset-inline-start: 4px; width: 36px; height: 36px; border-radius: 50%; background: #FFFFFF;
   box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.18); transition: inset-inline-start 0.35s cubic-bezier(.3,1.4,.5,1); }
 .hope-switch.on .knob { inset-inline-start: calc(100% - 40px); }
 .hope-switch { transition: background 0.35s; }
-.hope-switch.on { background: var(--gold); outline-color: var(--gilt); }
+.hope-switch.on { background: #2FA05A; outline-color: #23803F; }
 .hope-switch .tap-cue { left: auto; inset-inline-start: 12px; top: 22px; }
 .hope-switch.on .tap-cue { display: none; }

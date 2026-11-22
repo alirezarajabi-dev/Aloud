@@ -593,14 +593,16 @@
   // Today's line stays hidden until the book is opened once that day; then it rests here until tomorrow.
   const todayKey = () => new Date().toDateString();
   function seenToday() { try { return localStorage.getItem('aloud-seen') === todayKey(); } catch (e) { return true; } }
-  function markSeen() { try { localStorage.setItem('aloud-seen', todayKey()); } catch (e) { /* private mode */ } }
+  function markSeen() { try { localStorage.setItem('aloud-seen', todayKey()); localStorage.setItem('aloud-learned', '1'); } catch (e) { /* private mode */ } }
+  function learned() { try { return localStorage.getItem('aloud-learned') === '1'; } catch (e) { return true; } }
   function hopeCard() {
     const line = todayHope();
     if (!line) return '';
     if (!seenToday()) {
       return '<div class="hope-card raised locked"><span class="hc-label"><i aria-hidden="true"></i>' + esc(t('todaysLine')) + '</span>' +
         '<button class="hope-switch" data-act="open-book" aria-label="' + esc(t('openBook')) + '"><span class="knob"></span>' +
-        '<span class="tap-cue" aria-hidden="true"><i class="ripple"></i><i class="ripple r2"></i>' + I.hand + '</span></button></div>';
+        // The tapping hand only teaches the first time; once the book has been opened, it never comes back.
+        (learned() ? '' : '<span class="tap-cue" aria-hidden="true"><i class="ripple"></i><i class="ripple r2"></i>' + I.hand + '</span>') + '</button></div>';
     }
     return '<div class="hope-card raised"><span class="hc-label"><i aria-hidden="true"></i>' + esc(t('todaysLine')) + '</span>' +
       '<span class="hc-text" data-hope dir="auto">' + esc(line) + '</span>' +
