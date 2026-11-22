@@ -71,9 +71,7 @@ svg { flex: none; }
 
 /* ---------- frame: one thin gold line and two rosettes ---------- */
 #frame-line { position: fixed; inset: var(--inset); z-index: 45; pointer-events: none; border: 1.5px solid var(--gilt); border-radius: 34px; box-shadow: 0 0 0 1px rgba(12, 27, 46, 0.12); }
-.jewel { position: fixed; z-index: 46; pointer-events: none; width: 26px; height: 26px; top: calc(50% - 13px); filter: drop-shadow(0 2px 3px rgba(12, 27, 46, 0.25)); }
-.jewel.l { left: calc(var(--inset) + 0.75px - 13px); }
-.jewel.r { right: calc(var(--inset) + 0.75px - 13px); }
+.jewel { position: fixed; z-index: 46; pointer-events: none; width: 26px; height: 26px; top: 0; left: 0; will-change: transform; filter: drop-shadow(0 2px 3px rgba(12, 27, 46, 0.25)); }
 
 /* ---------- screens ---------- */
 #app { position: absolute; inset: 0; }

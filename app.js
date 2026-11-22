@@ -1697,6 +1697,55 @@
     }
   });
 
+  // ---------------------------------------------------------------- the travelling rosette
+  // One rosette rolls slowly along the gold frame line, turning as it goes.
+  (function rosette() {
+    const el = document.getElementById('jewel');
+    if (!el) return;
+    const SPEED = 38;   // px per second along the frame (about a minute per lap)
+    const SPIN = 60;    // degrees per second
+    let dist = 0;
+    let last = 0;
+    function geometry() {
+      const css = getComputedStyle(document.documentElement);
+      const inset = (parseFloat(css.getPropertyValue('--inset')) || 14) + 0.75;
+      const W = window.innerWidth; const H = window.innerHeight;
+      const r = 33.25;
+      const w = W - 2 * inset; const h = H - 2 * inset;
+      const sx = w - 2 * r; const sy = h - 2 * r; const arc = Math.PI * r / 2;
+      return { inset, r, sx, sy, arc, L: 2 * sx + 2 * sy + 4 * arc };
+    }
+    // Point on the rounded rectangle, clockwise from the top-left end of the top edge.
+    function pointAt(g, s) {
+      const { inset: b, r, sx, sy, arc } = g;
+      const segs = [
+        (u) => [b + r + u, b],                                                                   // top
+        (u) => { const a = -Math.PI / 2 + u / r; return [b + r + sx + r * Math.cos(a), b + r + r * Math.sin(a)]; },
+        (u) => [b + 2 * r + sx, b + r + u],                                                      // right
+        (u) => { const a = u / r; return [b + r + sx + r * Math.cos(a), b + r + sy + r * Math.sin(a)]; },
+        (u) => [b + r + sx - u, b + 2 * r + sy],                                                 // bottom
+        (u) => { const a = Math.PI / 2 + u / r; return [b + r + r * Math.cos(a), b + r + sy + r * Math.sin(a)]; },
+        (u) => [b, b + r + sy - u],                                                              // left
+        (u) => { const a = Math.PI + u / r; return [b + r + r * Math.cos(a), b + r + r * Math.sin(a)]; }
+      ];
+      const lens = [sx, arc, sy, arc, sx, arc, sy, arc];
+      for (let i = 0; i < 8; i++) { if (s <= lens[i]) return segs[i](s); s -= lens[i]; }
+      return segs[0](0);
+    }
+    let g = geometry();
+    dist = g.sx / 2 + g.arc + g.sy / 2; // start in the middle of the right side
+    window.addEventListener('resize', () => { g = geometry(); });
+    function frame(ts) {
+      if (last) dist = (dist + SPEED * Math.min(0.1, (ts - last) / 1000)) % g.L;
+      last = ts;
+      const [x, y] = pointAt(g, dist);
+      el.style.transform = 'translate(' + (x - 13).toFixed(1) + 'px,' + (y - 13).toFixed(1) + 'px) rotate(' + ((ts / 1000) * SPIN % 360).toFixed(1) + 'deg)';
+      if (!document.hidden) requestAnimationFrame(frame); else last = 0;
+    }
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { last = 0; requestAnimationFrame(frame); } });
+    requestAnimationFrame(frame);
+  })();
+
   // ---------------------------------------------------------------- start
   async function boot() {
     try { await loadState(); } catch (e) {
