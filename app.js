@@ -209,7 +209,7 @@
   }
 
   // Chapters the app makes by itself follow the interface language; chapters you name keep your words.
-  const AUTO_TITLES = ['فصل اول', 'Chapter One'];
+  const AUTO_TITLES = ['فصل اول', 'Chapter One', 'دفتر اول', 'Notebook One'];
   const isAutoChapter = (ch) => !!ch && (ch.auto === true || (ch.auto === undefined && AUTO_TITLES.includes(ch.title)));
   const chTitle = (ch) => (!ch ? '' : isAutoChapter(ch) ? t('defaultChapter') : (lang() === 'en' && ch.titleEn) ? ch.titleEn : ch.title);
 
@@ -350,7 +350,7 @@
     const photoSlot = small ? photo
       : '<label class="photo-slot" for="coverfile-home" data-no-act aria-label="' + esc(S.coverUrl ? t('changePhoto') : t('addCoverPhoto')) + '">' + photo + '</label>';
     const inner = spineHtml() + '<div class="frame" aria-hidden="true"></div>' + cornersHtml() +
-      '<span class="vol">' + esc(t('notebookOne')) + '</span>' +
+      '<span class="vol" dir="auto">' + esc(currentChapter() ? chTitle(currentChapter()) : t('notebookOne')) + '</span>' +
       '<span class="title">' + photoSlot +
       '<span class="t1">' + esc(t('journalOf')) + '</span><span class="t2' + (name.length > 7 ? ' long' : '') + '" data-cover-name>' + esc(name) + '</span></span>' +
       '<span class="meta">' + esc(meta) + '</span>';
@@ -691,13 +691,14 @@
       const last = groups[groups.length - 1];
       if (last && last.key === key) last.items.push(e); else groups.push({ key, items: [e] });
     }
-    if (!S.openMonths) S.openMonths = {};
+    // One month open at a time: opening a month closes the others, so the list never grows into a long scroll.
+    const ids = groups.map((g) => S.openChapter + '|' + g.key);
+    if (!ids.includes(S.openMonth)) S.openMonth = S.openMonth === '' ? '' : ids[0];
     return groups.map((g, i) => {
-      const id = S.openChapter + '|' + g.key;
-      const open = id in S.openMonths ? S.openMonths[id] : i === 0;
-      return '<details class="mgroup raised"' + (open ? ' open' : '') + ' data-month="' + esc(id) + '">' +
-        '<summary><b>' + esc(g.key) + '</b><span class="muted">' + esc(pagesText(g.items.length)) + '</span>' + I.down + '</summary>' +
-        '<div class="plist">' + g.items.map(pageRow).join('') + '</div></details>';
+      const open = ids[i] === S.openMonth;
+      return '<div class="mgroup raised' + (open ? ' open' : '') + '">' +
+        '<button type="button" class="mhead" data-act="toggle-month" data-id="' + esc(ids[i]) + '" aria-expanded="' + open + '"><b>' + esc(g.key) + '</b><span class="muted">' + esc(pagesText(g.items.length)) + '</span>' + I.down + '</button>' +
+        '<div class="plist">' + g.items.map(pageRow).join('') + '</div></div>';
     }).join('');
   }
 
@@ -1301,7 +1302,7 @@
   // ----- chapters
   function openChapterName(ch) {
     const auto = isAutoChapter(ch);
-    const fa = ch ? (auto ? 'فصل اول' : ch.title) : '';
+    const fa = ch ? (auto ? 'دفتر اول' : ch.title) : '';
     const en = ch ? (auto ? 'Chapter One' : (ch.titleEn || '')) : '';
     openSheet(
       '<h2>' + esc(ch ? t('renameChapter') : t('newChapterName')) + '</h2>' +
@@ -1652,6 +1653,17 @@
     'play-chapter': (el) => playChapter(el.dataset.id),
     'rename-chapter': (el) => openChapterName(S.chapters.find((c) => c.id === el.dataset.id)),
     'new-chapter': () => openChapterName(null),
+    'toggle-month': (el) => {
+      const id = el.dataset.id;
+      const opening = S.openMonth !== id;
+      S.openMonth = opening ? id : '';
+      document.querySelectorAll('.mgroup').forEach((g) => {
+        const h = g.querySelector('.mhead');
+        const on = opening && h.dataset.id === id;
+        g.classList.toggle('open', on); h.setAttribute('aria-expanded', on);
+      });
+      if (opening) requestAnimationFrame(() => el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+    },
     'toggle-play': () => { if (audio.paused) safe(audio.play()); else audio.pause(); },
     'stop-audio': () => stopAudio(),
     'remove-photo': async () => {
@@ -1712,10 +1724,6 @@
     }
   });
 
-  document.addEventListener('toggle', (ev) => {
-    const d = ev.target;
-    if (d && d.matches && d.matches('details[data-month]')) { if (!S.openMonths) S.openMonths = {}; S.openMonths[d.dataset.month] = d.open; }
-  }, true);
   document.addEventListener('change', (ev) => {
     if (ev.target.matches('[data-import]') && ev.target.files && ev.target.files.length) runImport(ev.target.files);
     if (ev.target.matches('[data-restore]') && ev.target.files && ev.target.files[0]) restoreBackup(ev.target.files[0]);
