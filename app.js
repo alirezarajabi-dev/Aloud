@@ -377,6 +377,7 @@
     const focus = app.querySelector('[autofocus]');
     if (focus) focus.focus();
     renderMini();
+    if (window.__settleJewel) window.__settleJewel();
     clearInterval(S.clockTimer);
     if (v === 'home') {
       S.clockTimer = setInterval(() => {
@@ -1755,8 +1756,6 @@
     const el = document.getElementById('jewel');
     if (!el) return;
     const SPEED = 38;   // px per second along the frame (about a minute per lap)
-    const SPIN = 60;    // degrees per second
-    let dist = 0;
     let last = 0;
     function geometry() {
       const css = getComputedStyle(document.documentElement);
@@ -1784,18 +1783,69 @@
       for (let i = 0; i < 8; i++) { if (s <= lens[i]) return segs[i](s); s -= lens[i]; }
       return segs[0](0);
     }
+    // The logo moves only while a recording is running, and stays wherever it stopped — even after the app closes.
     let g = geometry();
-    dist = g.sx / 2 + g.arc + g.sy / 2; // start in the middle of the right side
-    window.addEventListener('resize', () => { g = geometry(); });
-    function frame(ts) {
-      if (last) dist = (dist + SPEED * Math.min(0.1, (ts - last) / 1000)) % g.L;
-      last = ts;
-      const [x, y] = pointAt(g, dist);
-      el.style.transform = 'translate(' + (x - 15).toFixed(1) + 'px,' + (y - 15).toFixed(1) + 'px)';
-      if (!document.hidden) requestAnimationFrame(frame); else last = 0;
+    let frac = 0.5 * (g.sx / 2 + g.arc + g.sy / 2) / g.L * 2;
+    try { const v = parseFloat(localStorage.getItem('aloud-jewel')); if (v >= 0 && v < 1) frac = v; } catch (e) { /* private mode */ }
+    let running = false; let lastSave = 0;
+    const moving = () => !!(Rec.active && !Rec.paused) && !document.hidden;
+    function place() { const [x, y] = pointAt(g, frac * g.L); el.style.transform = 'translate(' + (x - 15).toFixed(1) + 'px,' + (y - 15).toFixed(1) + 'px)'; }
+    function save() { try { localStorage.setItem('aloud-jewel', frac.toFixed(5)); } catch (e) { /* ignore */ } }
+    // A good resting spot: on a straight side, clear of the phone's clock and home bar, and not over anything on screen.
+    const BUSY = 'button, a, label, summary, input, textarea, select, canvas, img:not(#jewel), b, span, small, p, h1, h2, h3, .raised, .cover, .dock, .mini';
+    function goodAt(f) {
+      const s = f * g.L; const { sx, sy, arc } = g;
+      const onSide = (s > sx * 0.08 && s < sx * 0.92) || (s > sx + arc + sy * 0.04 && s < sx + arc + sy * 0.96) ||
+        (s > 2 * sx + 2 * arc + sy + sy * 0.04 && s < 2 * sx + 2 * arc + 2 * sy - sy * 0.04);
+      if (!onSide) return false; // corners and the bottom edge sit under the home bar and dock
+      const [x, y] = pointAt(g, s);
+      if (y < 60 || y > window.innerHeight - 40) return false;
+      const pts = [[x, y], [x - 14, y], [x + 14, y], [x, y - 14], [x, y + 14]];
+      for (const [px, py] of pts) {
+        if (px < 0 || py < 0 || px >= window.innerWidth || py >= window.innerHeight) continue;
+        for (const el2 of document.elementsFromPoint(px, py)) {
+          if (el2 === el) continue;
+          if (el2.matches && el2.matches(BUSY)) return false;
+        }
+      }
+      return true;
     }
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) { last = 0; requestAnimationFrame(frame); } });
-    requestAnimationFrame(frame);
+    let gliding = 0;
+    function settle() {
+      if (moving() || gliding) return;
+      if (goodAt(frac)) return;
+      // Search forward (and a little backward) for the nearest good place, then glide there.
+      const step = 4 / g.L; let target = null;
+      for (let i = 1; i * step < 1; i++) {
+        const fw = (frac + i * step) % 1; if (goodAt(fw)) { target = { f: fw, dir: 1, d: i * step }; break; }
+        const bw = (frac - i * step + 1) % 1; if (goodAt(bw)) { target = { f: bw, dir: -1, d: i * step }; break; }
+      }
+      if (!target) return;
+      const from = frac; const dur = Math.min(1600, 300 + target.d * g.L * 6); const t0 = performance.now();
+      const ease = (u) => 1 - Math.pow(1 - u, 3);
+      const tick = (now) => {
+        if (moving()) { gliding = 0; return; }
+        const u = Math.min(1, (now - t0) / dur);
+        frac = (from + target.dir * target.d * ease(u) + 1) % 1; place();
+        if (u < 1) gliding = requestAnimationFrame(tick); else { gliding = 0; save(); }
+      };
+      gliding = requestAnimationFrame(tick);
+    }
+    let settleTimer = 0;
+    window.__settleJewel = () => { clearTimeout(settleTimer); settleTimer = setTimeout(settle, 450); };
+    function frame(ts) {
+      if (!moving()) { running = false; last = 0; save(); window.__settleJewel(); return; }
+      if (last) frac = (frac + SPEED * Math.min(0.1, (ts - last) / 1000) / g.L) % 1;
+      last = ts;
+      place();
+      if (ts - lastSave > 1000) { lastSave = ts; save(); }
+      requestAnimationFrame(frame);
+    }
+    function check() { if (!running && moving()) { if (gliding) { cancelAnimationFrame(gliding); gliding = 0; } running = true; last = 0; requestAnimationFrame(frame); } }
+    window.addEventListener('resize', () => { g = geometry(); place(); window.__settleJewel(); });
+    document.addEventListener('visibilitychange', check);
+    setInterval(check, 400);
+    place();
   })();
 
   // ---------------------------------------------------------------- start
