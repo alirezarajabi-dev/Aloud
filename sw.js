@@ -1,10 +1,10 @@
 // Keeps the app's own files cached so Aloud opens instantly and works with no connection.
 // Recordings are never here: they live in IndexedDB on the device.
-const CACHE = 'aloud-v10';
+const CACHE = 'aloud-v11';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'i18n.js', 'hope.js', 'zip.js', 'manifest.webmanifest', 'fonts/Afsaneh.ttf', 'icons/icon.svg', 'icons/apple-touch-icon.png', 'orn/medallion.svg', 'orn/headpiece.svg', 'orn/shamseh.svg'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -21,7 +21,8 @@ self.addEventListener('fetch', (e) => {
   if (!sameOrigin && !isFont) return;
   // Network first so updates show up at once; the cache answers when offline.
   e.respondWith(
-    fetch(e.request).then((res) => {
+    // no-cache: always ask the server, so the phone never keeps a stale copy for minutes.
+    fetch(e.request, sameOrigin ? { cache: 'no-cache' } : undefined).then((res) => {
       if (res.ok || res.type === 'opaque') { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
       return res;
     }).catch(() => caches.match(e.request).then((r) => r || (e.request.mode === 'navigate' ? caches.match('index.html') : undefined)))

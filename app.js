@@ -141,7 +141,23 @@
   async function loadCoverPhoto() {
     if (S.coverUrl) { URL.revokeObjectURL(S.coverUrl); S.coverUrl = null; }
     const rec = await DB.get('kv', 'coverPhoto');
-    if (rec && rec.blob) S.coverUrl = URL.createObjectURL(rec.blob);
+    const blob = await photoBlob(rec);
+    if (blob) S.coverUrl = URL.createObjectURL(blob);
+  }
+
+  // iPhone Home Screen apps can lose a stored Blob after a restart, so the photo is kept as raw bytes.
+  async function photoBlob(rec) {
+    if (!rec) return null;
+    if (rec.buf) return new Blob([rec.buf], { type: rec.type || 'image/jpeg' });
+    if (!rec.blob) return null;
+    try {
+      const buf = await rec.blob.arrayBuffer();
+      await DB.put('kv', { buf, type: rec.blob.type || 'image/jpeg' }, 'coverPhoto');
+      return new Blob([buf], { type: rec.blob.type || 'image/jpeg' });
+    } catch (e) { return null; }
+  }
+  async function savePhoto(blob) {
+    await DB.put('kv', { buf: await blob.arrayBuffer(), type: blob.type || 'image/jpeg' }, 'coverPhoto');
   }
 
   // Square-crops and shrinks a chosen picture so it stays small on the phone.
@@ -162,7 +178,7 @@
     try {
       const blob = await makeCoverPhoto(file);
       if (!blob) throw new Error('no_blob');
-      await DB.put('kv', { blob }, 'coverPhoto');
+      await savePhoto(blob);
       await loadCoverPhoto();
       toast(t('photoSaved'));
       if (sheet()) openSettings();
@@ -1350,8 +1366,8 @@
       files.push({ name, blob: rec.blob, size: rec.blob.size, crc: await window.RZip.blobCrc(rec.blob), date: new Date(e.startedAt) });
       manifest.entries.push(Object.assign({}, e, { file: name }));
     }
-    const photo = await DB.get('kv', 'coverPhoto');
-    if (photo && photo.blob) { files.push({ name: 'cover.jpg', blob: photo.blob, size: photo.blob.size, crc: await window.RZip.blobCrc(photo.blob) }); manifest.coverPhoto = 'cover.jpg'; }
+    const photo = await safe(photoBlob(await DB.get('kv', 'coverPhoto')));
+    if (photo) { files.push({ name: 'cover.jpg', blob: photo, size: photo.size, crc: await window.RZip.blobCrc(photo) }); manifest.coverPhoto = 'cover.jpg'; }
     files.unshift({ name: 'journal.json', data: new TextEncoder().encode(JSON.stringify(manifest, null, 1)) });
     const blob = new Blob(window.RZip.zipParts(files), { type: 'application/zip' });
     const fname = 'aloud-backup-' + nowIso().slice(0, 10) + '.zip';
@@ -1387,7 +1403,7 @@
       const manifest = JSON.parse(await (await jm.blob('application/json')).text());
       if (!manifest || manifest.app !== 'aloud') throw new Error('not_aloud');
       if (manifest.coverPhoto && byName.get(manifest.coverPhoto) && !S.coverUrl) {
-        await DB.put('kv', { blob: await byName.get(manifest.coverPhoto).blob('image/jpeg') }, 'coverPhoto');
+        await savePhoto(await byName.get(manifest.coverPhoto).blob('image/jpeg'));
         await loadCoverPhoto();
       }
       for (const ch of manifest.chapters || []) {
@@ -1763,7 +1779,22 @@
   }
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        // A Home Screen app is often resumed rather than reopened, so look for a new version on every return.
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+      }).catch(() => {});
+    });
+    // When a new version takes over, reload once — but only on the quiet home screen, never mid-recording.
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloaded) return;
+      const quiet = () => S.view === 'home' && !document.querySelector('.sheet, .intro') && !playerEntry;
+      const tryReload = () => { if (!reloaded && quiet()) { reloaded = true; location.reload(); } };
+      tryReload();
+      if (!reloaded) document.addEventListener('visibilitychange', () => { if (document.hidden) tryReload(); });
+    });
   }
 
   // Tiny hooks for automated tests; harmless in normal use.
