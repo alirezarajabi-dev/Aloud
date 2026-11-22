@@ -761,12 +761,14 @@
 
 
   // Pages folded by month: the newest month is open, older months stay closed until tapped.
+  const monthKey = (e) => { const d = new Date(e.startedAt); const cal = defaultCal(); return fmtCal(d, cal, { month: 'long' }) + ' ' + fmtCal(d, cal, { year: 'numeric' }); };
+  const scopeIds = () => S.entries.filter((x) => monthKey(x) === S.selMonth).map((x) => x.id);
   function monthGroups(list) {
     const cal = defaultCal();
     const groups = [];
     for (const e of list) {
       const d = new Date(e.startedAt);
-      const key = fmtCal(d, cal, { month: 'long' }) + ' ' + fmtCal(d, cal, { year: 'numeric' });
+      const key = monthKey(e);
       const last = groups[groups.length - 1];
       if (last && last.key === key) last.items.push(e); else groups.push({ key, items: [e] });
     }
@@ -774,6 +776,13 @@
     if (!S.openMonths) S.openMonths = {};
     const ids = groups.map((g) => g.key);
     return groups.map((g, i) => {
+      // While selecting, only the month being selected in is open; the others wait.
+      if (S.sel) {
+        const mine = ids[i] === S.selMonth;
+        return '<div class="mgroup raised' + (mine ? ' open' : ' dim') + '">' +
+          '<div class="mhead"><b>' + esc(g.key) + '</b><span class="muted">' + esc(pagesText(g.items.length)) + '</span></div>' +
+          (mine ? '<div class="plist">' + g.items.map(pageRow).join('') + '</div>' : '') + '</div>';
+      }
       const open = ids[i] in S.openMonths ? S.openMonths[ids[i]] : i === 0;
       return '<div class="mgroup raised' + (open ? ' open' : '') + '">' +
         '<button type="button" class="mhead" data-act="toggle-month" data-id="' + esc(ids[i]) + '" aria-expanded="' + open + '"><b>' + esc(g.key) + '</b><span class="muted">' + esc(pagesText(g.items.length)) + '</span>' + I.down + '</button>' +
@@ -784,7 +793,7 @@
   // Selection mode, reached by holding a page: pick several pages, or all, and delete them together.
   function selBar(list) {
     const n = S.sel.size;
-    const all = n === list.length && n > 0;
+    const all = n === scopeIds().length && n > 0;
     return '<div class="selbar raised"><b>' + esc(t('nSelected', { n: num(n) })) + '</b>' +
       '<span class="selbar-btns"><button class="small-btn raised" data-act="sel-all">' + esc(all ? t('selectNone') : t('selectAll')) + '</button>' +
       '<button class="small-btn danger" data-act="sel-delete"' + (n ? '' : ' disabled') + '>' + esc(t('delete')) + '</button>' +
@@ -798,7 +807,7 @@
       '<div class="action-list">' +
       '<button class="action raised" data-act="pa-rename" data-id="' + esc(e.id) + '">' + I.pen + '<span>' + esc(t('rename')) + '</span></button>' +
       '<button class="action raised" data-act="pa-select" data-id="' + esc(e.id) + '">' + I.check + '<span>' + esc(t('select')) + '</span></button>' +
-      '<button class="action raised" data-act="pa-select-all">' + I.check + '<span>' + esc(t('selectAll')) + '</span></button>' +
+      '<button class="action raised" data-act="pa-select-all" data-id="' + esc(e.id) + '">' + I.check + '<span>' + esc(t('selectAll')) + '</span></button>' +
       '<button class="action raised danger" data-act="pa-delete" data-id="' + esc(e.id) + '">' + I.trash + '<span>' + esc(t('delete')) + '</span></button>' +
       '</div><button class="btn btn-ghost" data-act="close-sheet">' + esc(t('close')) + '</button>');
   }
@@ -1791,8 +1800,8 @@
     'delete-entry': (el) => deleteEntry(el.dataset.id),
     'do-delete': (el) => doDelete(el.dataset.ids.split(',').filter(Boolean)),
     'pa-rename': (el) => { closeSheetDom(); const e = S.entries.find((x) => x.id === el.dataset.id); if (e) { openEdit(e); setTimeout(() => { const i = sheet() && sheet().querySelector('#ttl'); if (i) { i.focus(); i.select(); } }, 350); } },
-    'pa-select': (el) => { closeSheet(); S.sel = new Set([el.dataset.id]); render(); },
-    'pa-select-all': () => { closeSheet(); S.sel = new Set(S.entries.map((x) => x.id)); render(); },
+    'pa-select': (el) => { closeSheet(); const e = S.entries.find((x) => x.id === el.dataset.id); S.selMonth = monthKey(e); S.sel = new Set([e.id]); render(); },
+    'pa-select-all': (el) => { closeSheet(); const e = S.entries.find((x) => x.id === el.dataset.id); S.selMonth = monthKey(e); S.sel = new Set(scopeIds()); render(); },
     'pa-delete': (el) => { closeSheetDom(); confirmDelete([el.dataset.id]); },
     'sel-toggle': (el) => {
       const id = el.dataset.id;
@@ -1801,7 +1810,8 @@
       render(); const sc = app.querySelector('.screen'); if (sc) sc.scrollTop = keep;
     },
     'sel-all': () => {
-      S.sel = S.sel.size === S.entries.length ? new Set() : new Set(S.entries.map((x) => x.id));
+      const ids = scopeIds();
+      S.sel = S.sel.size === ids.length ? new Set() : new Set(ids);
       const keep = app.querySelector('.screen') ? app.querySelector('.screen').scrollTop : 0;
       render(); const sc = app.querySelector('.screen'); if (sc) sc.scrollTop = keep;
     },
