@@ -469,3 +469,16 @@ html[lang='en'] .intro-quote { font-size: 21px; line-height: 1.35; }
 .hope-switch.on { background: #2FA05A; outline-color: #23803F; }
 .hope-switch .tap-cue { left: auto; inset-inline-start: 12px; top: 22px; }
 .hope-switch.on .tap-cue { display: none; }
+
+/* Every tappable thing wears the same thin copper edge and a small lip underneath, so it reads as a button. */
+:root { --btn-edge: rgba(158, 104, 62, 0.42); --btn-lip: rgba(158, 104, 62, 0.28); }
+.iconbtn.raised, .pill.raised, .soft-btn, .small-btn.raised, .btn-ghost, .seg button, .chap-link, .memory, .datebar .tag, .cal-head .iconbtn, .intro-skip {
+  border: 1px solid var(--btn-edge) !important;
+  box-shadow: 0 2px 0 var(--btn-lip), 0 6px 14px rgba(12, 27, 46, 0.08) !important;
+}
+.seg button[aria-pressed='true'] { border-color: var(--green) !important; box-shadow: 0 2px 0 #0A1A19 !important; }
+.iconbtn.raised:active, .pill.raised:active, .soft-btn:active, .small-btn.raised:active, .btn-ghost:active, .seg button:active, .chap-link:active, .memory:active, .intro-skip:active {
+  transform: translateY(1px); box-shadow: 0 1px 0 var(--btn-lip) !important;
+}
+.intro-skip { background: var(--surface); color: var(--text); font-weight: 700; border-radius: 999px; padding: 10px 26px; }
+.datebar .tag { box-sizing: border-box; }
