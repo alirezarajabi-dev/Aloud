@@ -441,7 +441,7 @@ html[lang='en'] .intro-quote { font-size: 21px; line-height: 1.35; }
 
 /* A small hand taps the book now and then: shows the cover opens, without words. */
 .cover-holder { position: relative; display: flex; }
-.tap-cue { position: absolute; left: 58%; bottom: 14%; width: 40px; height: 40px; pointer-events: none; color: var(--gold); filter: drop-shadow(0 2px 3px rgba(0,0,0,0.45)); animation: tap-hand 3.2s ease-in-out infinite; }
+.tap-cue { position: absolute; left: 30%; top: 46%; width: 40px; height: 40px; pointer-events: none; color: var(--gold); filter: drop-shadow(0 2px 3px rgba(0,0,0,0.45)); animation: tap-hand 3.2s ease-in-out infinite; }
 .tap-cue svg { position: relative; width: 40px; height: 40px; }
 .tap-cue .ripple { position: absolute; left: 2px; top: -6px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--gold); opacity: 0; animation: tap-ripple 3.2s ease-out infinite; }
 .tap-cue .ripple.r2 { animation-delay: 0.18s; }
@@ -455,3 +455,17 @@ html[lang='en'] .intro-quote { font-size: 21px; line-height: 1.35; }
 .cal-month[dir='ltr'] { font-family: 'Kaushan Script', cursive; }
 .cal-grid.latin, .cal-month2[dir='ltr'], .db-text small[dir='ltr'] { font-family: Manrope, system-ui, sans-serif; }
 .db-text small[dir='ltr'] { text-align: right; }
+
+/* Today's line, still closed: a switch the hand taps. Turning it on opens the book. */
+.hope-card.locked { align-items: center; gap: 10px; padding: 12px 16px 16px; }
+.hope-card.locked .hc-label { align-self: flex-start; }
+.hope-switch { all: unset; position: relative; cursor: pointer; width: 112px; height: 50px; border-radius: 999px; box-sizing: border-box;
+  background: var(--green); border: 3px solid var(--bg); outline: 2px solid var(--green);
+  box-shadow: 0 3px 0 rgba(12, 27, 46, 0.25), 0 8px 18px rgba(12, 27, 46, 0.18); -webkit-tap-highlight-color: transparent; }
+.hope-switch .knob { position: absolute; top: 4px; inset-inline-start: 4px; width: 36px; height: 36px; border-radius: 50%; background: #FBF8F1;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.18); transition: inset-inline-start 0.35s cubic-bezier(.3,1.4,.5,1); }
+.hope-switch.on .knob { inset-inline-start: calc(100% - 40px); }
+.hope-switch { transition: background 0.35s; }
+.hope-switch.on { background: var(--gold); outline-color: var(--gilt); }
+.hope-switch .tap-cue { left: auto; inset-inline-start: 12px; top: 22px; }
+.hope-switch.on .tap-cue { display: none; }

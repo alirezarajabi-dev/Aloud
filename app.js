@@ -473,7 +473,8 @@
   // ----- opening: the journal opens; tap to reveal today's line; then the cover closes with your photo on it
   function playIntro(force) {
     if (document.querySelector('.intro')) return;
-    if (!force) {
+    if (!force) return; // the book opens only when you tap it
+    if (false) {
       if (S.introPlayed) return;
       S.introPlayed = true;
       // On its own it opens once a day; tapping the book opens it any time.
@@ -502,7 +503,7 @@
     const leave = () => {
       timers.forEach(clearTimeout);
       wrap.classList.add('out');
-      setTimeout(() => wrap.remove(), 650);
+      setTimeout(() => { wrap.remove(); if (S.view === 'home') render(); }, 650);
     };
     // The cover swings shut again; your photo shines on it; then the app opens.
     const closeBook = () => {
@@ -525,6 +526,7 @@
     const reveal = () => {
       if (wrap.classList.contains('revealed') || closing) return;
       wrap.classList.add('revealed');
+      markSeen();
       wrap.querySelectorAll('.q-text .w').forEach((w, i) => { w.style.animationDelay = (0.35 + i * 0.16).toFixed(2) + 's'; });
       speak(quote);
       const n = quote.split(' ').length;
@@ -588,9 +590,18 @@
       '<span class="tag">' + I.cal + esc(t('calendar')) + '</span></span></button>';
   }
 
+  // Today's line stays hidden until the book is opened once that day; then it rests here until tomorrow.
+  const todayKey = () => new Date().toDateString();
+  function seenToday() { try { return localStorage.getItem('aloud-seen') === todayKey(); } catch (e) { return true; } }
+  function markSeen() { try { localStorage.setItem('aloud-seen', todayKey()); } catch (e) { /* private mode */ } }
   function hopeCard() {
     const line = todayHope();
     if (!line) return '';
+    if (!seenToday()) {
+      return '<div class="hope-card raised locked"><span class="hc-label"><i aria-hidden="true"></i>' + esc(t('todaysLine')) + '</span>' +
+        '<button class="hope-switch" data-act="open-book" aria-label="' + esc(t('openBook')) + '"><span class="knob"></span>' +
+        '<span class="tap-cue" aria-hidden="true"><i class="ripple"></i><i class="ripple r2"></i>' + I.hand + '</span></button></div>';
+    }
     return '<div class="hope-card raised"><span class="hc-label"><i aria-hidden="true"></i>' + esc(t('todaysLine')) + '</span>' +
       '<span class="hc-text" data-hope dir="auto">' + esc(line) + '</span>' +
       '<button class="link-btn" data-act="next-hope">' + I.fwd + esc(t('anotherLine')) + '</button></div>';
@@ -615,7 +626,7 @@
       '<div class="top-actions">' + langPill() +
       '<button class="iconbtn raised" data-act="settings" aria-label="' + esc(t('settings')) + '">' + I.gear + (needsBackup() ? '<i class="badge-dot" aria-hidden="true"></i>' : '') + '</button></div></header>' +
       dateBar() +
-      '<div class="cover-area"><div class="cover-holder">' + coverHtml(false) + '<span class="tap-cue" aria-hidden="true"><i class="ripple"></i><i class="ripple r2"></i>' + I.hand + '</span></div>' +
+      '<div class="cover-area"><div class="cover-holder">' + coverHtml(false) + '</div>' +
       '<button class="soft-btn raised" data-act="contents">' + I.book + esc(t('openContents')) +
       (S.entries.length ? '<span class="muted">' + esc(SEP() + pagesText(S.entries.length)) + '</span>' : '') + '</button></div>' +
       hopeCard() +
@@ -931,7 +942,13 @@
   };
 
   // In automatic mode the screen turns dark at 7 pm and light at 7 am, even while the app stays open.
-  setInterval(() => { if (!Rec.active && document.visibilityState === 'visible') applyLangTheme(); }, 60000);
+  let shownDay = new Date().toDateString();
+  setInterval(() => {
+    if (Rec.active || document.visibilityState !== 'visible') return;
+    applyLangTheme();
+    // A new day: today's line hides again and waits for the book to be opened.
+    if (new Date().toDateString() !== shownDay) { shownDay = new Date().toDateString(); if (S.view === 'home' && !sheet() && !document.querySelector('.intro')) render(); }
+  }, 30000);
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
@@ -1594,7 +1611,10 @@
   // ---------------------------------------------------------------- events
   const actions = {
     'contents': () => go('contents'),
-    'open-book': () => playIntro(true),
+    'open-book': (el) => {
+      if (el && el.classList && el.classList.contains('hope-switch')) { el.classList.add('on'); setTimeout(() => playIntro(true), 380); return; }
+      playIntro(true);
+    },
     'home': () => go('home'),
     'back': () => { if (history.state && history.state.view && history.state.view !== 'home') history.back(); else go('home'); },
     'open-chapter': (el) => { S.openChapter = el.dataset.id; render(); const sc = app.querySelector('.screen'); if (sc) sc.scrollTop = 0; },
