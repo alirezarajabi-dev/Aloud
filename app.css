@@ -465,7 +465,21 @@ html[lang='en'] .intro-quote { font-size: 21px; line-height: 1.35; }
   box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.25); transition: left 0.35s cubic-bezier(.3,1.4,.5,1); }
 .hope-switch.on { background: #2FA05A; border-color: #7FD69E; }
 .hope-switch.on .knob { left: calc(58% - 2px); }
-.hope-switch .tap-cue { left: 2px; top: 55%; bottom: auto; width: 30px; height: 30px; }
+.hope-switch .tap-cue { left: 0; top: calc(50% - 6px); bottom: auto; width: 30px; height: 30px; opacity: 0; animation: none; }
+.hope-switch .tap-cue .ripple { animation: none; }
+.hope-switch .tap-cue.play { animation: cue-hand 3.4s ease-in-out both; }
+.hope-switch .tap-cue.play .ripple { animation: cue-ripple 3.4s ease-out both; }
+.hope-switch .tap-cue.play .ripple.r2 { animation-delay: 0.15s; }
+@keyframes cue-hand {
+  0% { opacity: 0; transform: translate(14px, 16px); }
+  14% { opacity: 1; transform: translate(0, 0); }
+  22% { transform: scale(0.86); } 30% { transform: scale(1); }
+  44% { transform: scale(0.86); } 52% { transform: scale(1); }
+  80% { opacity: 1; transform: translate(0, 0); }
+  100% { opacity: 0; transform: translate(14px, 16px); } }
+@keyframes cue-ripple {
+  0%, 20% { opacity: 0; transform: scale(0.3); } 23% { opacity: 0.95; transform: scale(0.5); } 36% { opacity: 0; transform: scale(2.1); }
+  42% { opacity: 0; transform: scale(0.3); } 45% { opacity: 0.95; transform: scale(0.5); } 58%, 100% { opacity: 0; transform: scale(2.1); } }
 .hope-switch .tap-cue svg { width: 30px; height: 30px; }
 .hope-switch .tap-cue .ripple { left: 1px; top: -5px; width: 18px; height: 18px; }
 .hope-switch.on .tap-cue { display: none; }

@@ -378,6 +378,7 @@
     if (focus) focus.focus();
     renderMini();
     if (window.__settleJewel) window.__settleJewel();
+    cueHand();
     clearInterval(S.clockTimer);
     if (v === 'home') {
       S.clockTimer = setInterval(() => {
@@ -600,8 +601,8 @@
   // A small switch at the book's corner: off each new morning, green once today's line has been read.
   function bookSwitch() {
     return '<button class="hope-switch' + (seenToday() ? ' on' : '') + '" data-act="open-book" aria-label="' + esc(t('openBook')) + '"><span class="knob"></span>' +
-      // The tapping hand only teaches the first time; once the book has been opened, it never comes back.
-      (learned() ? '' : '<span class="tap-cue" aria-hidden="true"><i class="ripple"></i><i class="ripple r2"></i>' + I.hand + '</span>') + '</button>';
+      // While the switch is off, a hand now and then taps right on it (see cueHand).
+      (seenToday() ? '' : '<span class="tap-cue" aria-hidden="true"><i class="ripple"></i><i class="ripple r2"></i>' + I.hand + '</span>') + '</button>';
   }
   // After the book closes, today's line drifts down from where the book was and settles into its card.
   function flyLineHome(fromBox) {
@@ -626,6 +627,21 @@
     ], { duration: 1600, easing: 'cubic-bezier(.25,.8,.3,1)' });
     const done = () => { ghost.remove(); target.style.opacity = ''; const card = target.closest('.hope-card'); if (card) card.classList.add('landed'); };
     anim.onfinish = done; anim.oncancel = done;
+  }
+
+  // The hand comes a moment after the home screen opens, taps the switch twice and leaves.
+  // If nothing happens for a while it shows once more, then stays away.
+  let cueTimers = [];
+  function cueHand() {
+    cueTimers.forEach(clearTimeout); cueTimers = [];
+    const play = () => {
+      const cue = app.querySelector('.hope-switch:not(.on) .tap-cue');
+      if (!cue || sheet() || document.querySelector('.intro')) return;
+      cue.classList.remove('play'); void cue.offsetWidth; cue.classList.add('play');
+    };
+    if (S.view !== 'home' || seenToday()) return;
+    cueTimers.push(setTimeout(play, 1500));
+    cueTimers.push(setTimeout(play, 1500 + 3400 + 10000));
   }
 
   function hopeCard() {
