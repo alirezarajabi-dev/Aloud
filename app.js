@@ -147,6 +147,9 @@
     if (!rec || !rec.blob) return false;
     try { await rec.blob.slice(0, 16).arrayBuffer(); return true; } catch (e) { return false; }
   }
+  // Pages are kept in true time order (by the moment they were recorded), never by text.
+  const when = (e) => { const n = Date.parse(e.startedAt); return Number.isNaN(n) ? 0 : n; };
+  function sortEntries(list) { return list.sort((a, b) => when(a) - when(b) || String(a.id).localeCompare(String(b.id))); }
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   const nowIso = () => new Date().toISOString();
 
@@ -202,7 +205,7 @@
     S.settings = (await DB.get('kv', 'settings')) || {};
     await safe(loadCoverPhoto());
     S.chapters = (await DB.all('chapters')).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    S.entries = (await DB.all('entries')).sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+    S.entries = sortEntries(await DB.all('entries'));
   }
 
   async function putSettings(patch) {
@@ -246,7 +249,7 @@
     const own = await ownCopy(blob, entry.mime);
     await DB.tx(['entries', 'audio'], 'readwrite', ([es, as]) => { es.put(entry); as.put({ id: entry.id, blob: own }); });
     S.entries.push(entry);
-    S.entries.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+    sortEntries(S.entries);
     return entry;
   }
 
@@ -1398,7 +1401,7 @@
       const when = s.querySelector('#when').value;
       if (when && !Number.isNaN(new Date(when).getTime())) patch.startedAt = new Date(when).toISOString();
       await updateEntry(id, patch);
-      S.entries.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+      sortEntries(S.entries);
       closeSheet();
       render();
     } catch (e) { toast(t('saveFailed')); }
@@ -1574,7 +1577,7 @@
         if (!have) S.entries.push(entry);
         added++;
       }
-      S.entries.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+      sortEntries(S.entries);
       const ms = manifest.settings || {};
       if (!S.settings.name && ms.name) await putSettings({ name: ms.name, nameEn: ms.nameEn || '', lang: ms.lang || lang(), theme: ms.theme || S.settings.theme });
       await askPersistence();
@@ -1753,7 +1756,7 @@
         try { history.replaceState({ view: 'home' }, ''); } catch (e) { /* ignore */ }
         render(); playIntro();
         askPersistence();
-      } catch (e) { el.disabled = false; toast(t('saveFailed')); }
+      } catch (e) { console.error(e); el.disabled = false; toast(t('saveFailed')); }
     },
     'save-settings': async () => {
       const name = (sheet().querySelector('#setname').value || '').trim();

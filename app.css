@@ -524,3 +524,10 @@ html[lang='en'] .intro-quote { font-size: 21px; line-height: 1.35; }
 .action.danger svg { color: var(--danger); }
 .action:active { transform: translateY(1px); box-shadow: none; }
 .mgroup.dim { opacity: 0.45 !important; }
+
+/* Persian fields start from the right, even while empty; the date field never spills out of the sheet. */
+html[dir='rtl'] input[dir='auto']:placeholder-shown { direction: rtl; text-align: right; }
+input.when { display: block; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; -webkit-appearance: none; appearance: none; }
+html[dir='rtl'] input.when { direction: rtl; text-align: right; }
+input.when::-webkit-date-and-time-value { text-align: right; }
+html[dir='ltr'] input.when::-webkit-date-and-time-value { text-align: left; }
