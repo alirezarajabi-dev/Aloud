@@ -61,7 +61,7 @@
   function pagesText(n) { return lang() === 'en' && n === 1 ? '1 page' : t('pagesCount', { n: num(n) }); }
   function chaptersPagesText(c, p) {
     if (lang() !== 'en') return t('chaptersPages', { c: num(c), p: num(p) });
-    return (c === 1 ? '1 chapter' : c + ' chapters') + ' · ' + (p === 1 ? '1 page' : p + ' pages');
+    return (c === 1 ? '1 notebook' : c + ' notebooks') + ' · ' + (p === 1 ? '1 page' : p + ' pages');
   }
 
   // ---------------------------------------------------------------- icons
