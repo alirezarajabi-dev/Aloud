@@ -1217,8 +1217,10 @@
       audio.dataset.id = entry.id;
       audio.dataset.url = '';
       audio.removeAttribute('src');
-      DB.get('audio', entry.id).then((rec) => {
-        if (!rec || audio.dataset.id !== entry.id) return;
+      DB.get('audio', entry.id).then(async (rec) => {
+        if (audio.dataset.id !== entry.id) return;
+        // A page whose sound was lost (it only borrowed a file that iPhone later cleared) says so plainly.
+        if (!(await readable(rec))) { toast(t('soundMissing')); return; }
         const url = URL.createObjectURL(rec.blob);
         audio.dataset.url = url;
         audio.src = url;
@@ -1228,7 +1230,7 @@
     const marks = (entry.bookmarks || []).map((s) => '<button class="chip" data-act="seek-to" data-sec="' + s + '">' + I.markFill + esc(fmtClock(s)) + '</button>').join('');
     const ch = S.chapters.find((c) => c.id === entry.chapterId);
     openSheet(
-      '<div><span class="muted small" dir="auto">' + esc(chTitle(ch)) + '</span>' +
+      '<div><span class="muted small">' + esc(fmtLong(entry.startedAt)) + '</span>' +
       '<h2 class="player-title" dir="auto">' + esc(entryTitle(entry)) + '</h2>' +
       '<span class="muted small">' + esc(fmtLong(entry.startedAt) + SEP() + fmtDate(entry.startedAt, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span></div>' +
       '<div><input class="seek" type="range" min="0" max="1000" value="0" step="1" data-seek aria-label="seek">' +
@@ -1512,8 +1514,8 @@
         const item = byName.get(e.file);
         if (!item) continue;
         const have = S.entries.find((x) => x.id === e.id);
-        // A page already here is kept, unless its sound was lost — then the backup's copy repairs it.
-        if (have && await readable(await DB.get('audio', e.id))) continue;
+        // A page already here keeps its title and date, but always takes the backup's sound,
+        // so any page whose sound was lost is repaired.
         const entry = have || Object.assign({}, e);
         delete entry.file;
         const blob = await ownCopy(await item.blob(entry.mime || 'audio/mp4'), entry.mime || 'audio/mp4');
