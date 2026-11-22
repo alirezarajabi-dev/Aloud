@@ -463,11 +463,10 @@
   function todayHope() {
     const hopes = (window.HOPE && window.HOPE[lang()]) || [];
     if (!hopes.length) return '';
-    if (S.hopeIndex === undefined) {
-      const now = new Date();
-      S.hopeIndex = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000) % hopes.length;
-    }
-    return hopes[S.hopeIndex % hopes.length];
+    // One line a day, the same all day long.
+    const now = new Date();
+    const day = Math.floor((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(now.getFullYear(), 0, 0)) / 86400000);
+    return hopes[day % hopes.length];
   }
 
   // ----- opening: the journal opens; tap to reveal today's line; then the cover closes with your photo on it
@@ -500,10 +499,13 @@
     document.body.appendChild(wrap);
     const timers = [];
     let closing = false;
+    let closedEarly = false;
     const leave = () => {
       timers.forEach(clearTimeout);
       wrap.classList.add('out');
-      setTimeout(() => { wrap.remove(); if (S.view === 'home') render(); }, 650);
+      const from = wrap.querySelector('.intro-quote');
+      const fromBox = from && wrap.classList.contains('revealed') ? from.getBoundingClientRect() : null;
+      setTimeout(() => { wrap.remove(); if (S.view === 'home') { render(); if (fromBox && !closedEarly) flyLineHome(fromBox); } }, 650);
     };
     // The cover swings shut again; your photo shines on it; then the app opens.
     const closeBook = () => {
@@ -601,14 +603,43 @@
       // The tapping hand only teaches the first time; once the book has been opened, it never comes back.
       (learned() ? '' : '<span class="tap-cue" aria-hidden="true"><i class="ripple"></i><i class="ripple r2"></i>' + I.hand + '</span>') + '</button>';
   }
+  // After the book closes, today's line drifts down from where the book was and settles into its card.
+  function flyLineHome(fromBox) {
+    const target = app.querySelector('.hope-card [data-hope]');
+    const cover = app.querySelector('.cover-area .cover');
+    if (!target) return;
+    const to = target.getBoundingClientRect();
+    const start = cover ? cover.getBoundingClientRect() : fromBox;
+    const ghost = document.createElement('div');
+    ghost.className = 'line-ghost';
+    ghost.textContent = target.textContent;
+    ghost.dir = 'auto';
+    ghost.style.left = to.left + 'px'; ghost.style.top = to.top + 'px'; ghost.style.width = to.width + 'px';
+    document.body.appendChild(ghost);
+    target.style.opacity = '0';
+    const dx = (start.left + start.width / 2) - (to.left + to.width / 2);
+    const dy = (start.top + start.height * 0.55) - (to.top + to.height / 2);
+    const anim = ghost.animate([
+      { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(0.55)', opacity: 0, filter: 'blur(4px)' },
+      { transform: 'translate(' + dx * 0.5 + 'px,' + (dy * 0.55) + 'px) scale(0.8)', opacity: 1, filter: 'blur(0)', offset: 0.35 },
+      { transform: 'translate(0,0) scale(1)', opacity: 1, filter: 'blur(0)' }
+    ], { duration: 1600, easing: 'cubic-bezier(.25,.8,.3,1)' });
+    const done = () => { ghost.remove(); target.style.opacity = ''; const card = target.closest('.hope-card'); if (card) card.classList.add('landed'); };
+    anim.onfinish = done; anim.oncancel = done;
+  }
+
   function hopeCard() {
     const line = todayHope();
     if (!line) return '';
-    if (!seenToday()) return ''; // waits behind the switch on the book until opened today
+    // Until the switch on the book is turned on today, the card only points to the book.
+    if (!seenToday()) {
+      return '<div class="hope-card raised waiting"><span class="hc-label"><i aria-hidden="true"></i>' + esc(t('todaysLine')) + '</span>' +
+        '<span class="hc-wait">' + esc(t('lineInBook')) + '</span></div>';
+    }
     return '<div class="hope-card raised"><span class="hc-label"><i aria-hidden="true"></i>' + esc(t('todaysLine')) + '</span>' +
-      '<span class="hc-text" data-hope dir="auto">' + esc(line) + '</span>' +
-      '<button class="link-btn" data-act="next-hope">' + I.fwd + esc(t('anotherLine')) + '</button></div>';
+      '<span class="hc-text" data-hope dir="auto">' + esc(line) + '</span></div>';
   }
+
 
   // Personal AR logo in a navy-and-gold ring. Uses icons/ar-logo.png when present.
   function badgeHtml() {
@@ -1627,13 +1658,6 @@
     'cal-next': () => moveMonth(1),
     'cal-mode': (el) => { S.calMode = el.dataset.mode; openCalendar(true); },
     'cal-day': (el) => { S.calSelected = el.dataset.key; openCalendar(true); },
-    'next-hope': () => {
-      const list = (window.HOPE && window.HOPE[lang()]) || [];
-      if (!list.length) return;
-      S.hopeIndex = (S.hopeIndex + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length;
-      const el = app.querySelector('[data-hope]');
-      if (el) { el.textContent = list[S.hopeIndex]; const card = el.closest('.hope-card'); if (card) { card.classList.remove('swap'); void card.offsetWidth; card.classList.add('swap'); } }
-    },
     'record': () => { if (!audio.paused) stopAudio(); Rec.start(); },
     'rec-mark': () => Rec.mark(),
     'rec-pause': () => Rec.togglePause(),

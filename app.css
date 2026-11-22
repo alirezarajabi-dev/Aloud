@@ -482,3 +482,9 @@ html[lang='en'] .intro-quote { font-size: 21px; line-height: 1.35; }
 }
 .intro-skip { background: var(--surface); color: var(--text); font-weight: 700; font-size: 13px; border-radius: 999px; padding: 7px 18px; }
 .datebar .tag { box-sizing: border-box; }
+
+/* Today's line, waiting in the book. */
+.hc-wait { font-size: 15px; line-height: 1.8; color: var(--muted); padding: 4px 0 8px; }
+.line-ghost { position: fixed; z-index: 60; pointer-events: none; font-family: var(--title-font); font-size: 20px; line-height: 1.6; color: var(--text); transform-origin: center; }
+.hope-card.landed { animation: landed 0.7s var(--ease) both; }
+@keyframes landed { 0% { box-shadow: 0 0 0 0 rgba(254, 191, 23, 0.55); } 100% { box-shadow: 0 0 0 14px rgba(254, 191, 23, 0); } }
