@@ -375,8 +375,8 @@
     else if (v === 'welcome') app.innerHTML = viewWelcome();
     else if (v === 'home') app.innerHTML = viewHome();
     else if (v === 'contents') app.innerHTML = viewContents();
-    if (v !== 'contents') S.sel = null;
     else if (v === 'recorder') { app.innerHTML = viewRecorder(); Rec.bindView(); }
+    if (v !== 'contents') S.sel = null;
     const focus = app.querySelector('[autofocus]');
     if (focus) focus.focus();
     renderMini();
