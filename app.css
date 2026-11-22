@@ -116,7 +116,8 @@ html[data-theme='dark'] .btn-primary { background: var(--gold); color: var(--nav
 .small-btn svg { width: 14px; height: 14px; }
 .small-btn.dark { background: var(--green); color: var(--cream); box-shadow: 0 2px 0 #0A1A19, 0 6px 14px rgba(20, 44, 43, 0.22); }
 html[data-theme='dark'] .small-btn.dark { background: var(--gold); color: var(--navy); box-shadow: 0 2px 0 var(--gilt); }
-.link-btn { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; color: var(--accent-text); font-size: 13px; font-weight: 700; padding: 6px 0; }
+.link-btn { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; color: var(--accent-text); font-size: 13px; font-weight: 700; padding: 8px 14px; border-radius: 999px; background: var(--surface); border: 1px solid rgba(158, 104, 62, 0.4); box-shadow: 0 2px 0 rgba(158, 104, 62, 0.28), 0 4px 10px rgba(12, 27, 46, 0.08); }
+.link-btn:active { transform: translateY(1px); box-shadow: 0 1px 0 var(--line); }
 .link-btn svg { width: 14px; height: 14px; }
 .text-danger { border: 0; background: transparent; color: var(--danger); font-weight: 700; font-size: 14px; height: 44px; padding: 0 10px; }
 .chip { height: 38px; padding: 0 14px; border-radius: 19px; border: 0; background: var(--surface); box-shadow: var(--shadow-soft); font-size: 13px; display: inline-flex; align-items: center; gap: 6px; color: var(--text); }
@@ -140,7 +141,7 @@ html[data-theme='dark'] .chip[aria-pressed='true'] { background: var(--gold); co
 .soft-btn svg { width: 16px; height: 16px; }
 .soft-btn .muted { font-weight: 500; }
 
-.hope-card { border-radius: 18px; padding: 12px 16px 6px; display: flex; flex-direction: column; gap: 2px; flex: none; }
+.hope-card { border-radius: 18px; padding: 12px 16px 12px; display: flex; flex-direction: column; gap: 2px; flex: none; }
 .hc-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .hc-label i { width: 6px; height: 6px; border-radius: 3px; background: var(--gold); }
 .hc-text { font-family: var(--title-font); font-size: 20px; line-height: 1.6; }
@@ -170,7 +171,7 @@ html[dir='ltr'] .cover .spine { right: auto; left: 0; }
 html[dir='ltr'] .cover .frame { inset: 3.8cqh 3.8cqh 3.8cqh 7.5cqh; border-radius: 4px 8px 8px 4px; }
 .cover .orn-c { display: none; }
 .cover .vol { position: relative; font-size: 4.2cqh; letter-spacing: 1px; color: var(--copper); max-width: 80%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cover .title { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.5cqh; }
+.cover .title { position: relative; margin: auto 0; display: flex; flex-direction: column; align-items: center; gap: 0.5cqh; }
 .cover .t1 { font-family: var(--title-font); font-size: 7.5cqh; line-height: 1.5; color: var(--copper); }
 .cover .t2 { font-family: var(--title-font); font-size: 14cqh; line-height: 1.2; color: #F2EEE4; overflow-wrap: normal; max-width: 100%; }
 .cover .t2.long { font-size: 10.5cqh; }
@@ -199,7 +200,9 @@ html[lang='en'] .cover .t2.long { font-size: 9cqh; }
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center;
   background: var(--surface); box-shadow: 0 2px 0 rgba(20, 44, 43, 0.06), 0 14px 32px rgba(20, 44, 43, 0.18);
 }
-.dock-item { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; color: var(--text); padding: 8px 0; }
+.dock-item { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; color: var(--text); padding: 7px 14px; margin: 0 auto; border-radius: 16px; border: 1px solid rgba(158, 104, 62, 0.4); background: var(--bg); box-shadow: 0 2px 0 rgba(158, 104, 62, 0.28); min-width: 64px; }
+.dock-item:active { transform: translateY(1px); box-shadow: none; }
+.dock-item.on { border-color: var(--accent-text); }
 .dock-item svg { width: 22px; height: 22px; }
 .dock-item.on { color: var(--accent-text); }
 .dock-rec { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: -40px; font-size: 12px; font-weight: 800; color: var(--text); text-align: center; white-space: nowrap; }
@@ -436,8 +439,14 @@ html[lang='en'] .intro-quote { font-size: 21px; line-height: 1.35; }
 .iconbtn { position: relative; }
 .iconbtn .badge-dot { position: absolute; top: 8px; inset-inline-end: 8px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px var(--surface); }
 
-.cover-hint { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); margin-top: -4px; }
-.cover-hint svg { width: 13px; height: 13px; color: var(--gilt); }
+/* A small hand taps the book now and then: shows the cover opens, without words. */
+.cover-holder { position: relative; display: flex; }
+.tap-cue { position: absolute; left: 58%; bottom: 14%; width: 40px; height: 40px; pointer-events: none; color: var(--gold); filter: drop-shadow(0 2px 3px rgba(0,0,0,0.45)); animation: tap-hand 3.2s ease-in-out infinite; }
+.tap-cue svg { position: relative; width: 40px; height: 40px; }
+.tap-cue .ripple { position: absolute; left: 2px; top: -6px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--gold); opacity: 0; animation: tap-ripple 3.2s ease-out infinite; }
+.tap-cue .ripple.r2 { animation-delay: 0.18s; }
+@keyframes tap-hand { 0%, 30% { transform: translate(10px, 12px); opacity: 0; } 40% { transform: translate(0, 0); opacity: 1; } 48% { transform: translate(0, 0) scale(0.9); } 56% { transform: translate(0, 0) scale(1); } 80% { opacity: 1; transform: translate(0, 0); } 100% { opacity: 0; transform: translate(10px, 12px); } }
+@keyframes tap-ripple { 0%, 46% { opacity: 0; transform: scale(0.3); } 50% { opacity: 0.95; transform: scale(0.5); } 75%, 100% { opacity: 0; transform: scale(2.2); } }
 .cover-area { gap: 10px; }
 
 .restore-box { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }

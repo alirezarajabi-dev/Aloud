@@ -76,6 +76,7 @@
     book: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 7h6"/></svg>',
     cal: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
     camera: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    hand: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 14a8 8 0 0 1-8 8"/><path d="M18 11v-1a2 2 0 0 0-4 0"/><path d="M14 10V9a2 2 0 0 0-4 0v1"/><path d="M10 9.5V4a2 2 0 0 0-4 0v10"/><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>',
     spark: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>',
     down: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
     pen: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
@@ -341,7 +342,7 @@
   function coverHtml(small) {
     const name = (lang() === 'en' && S.settings.nameEn) || S.settings.name || t('yourName');
     const meta = S.entries.length
-      ? chaptersPagesText(S.chapters.length, S.entries.length)
+      ? pagesText(S.entries.length)
       : t('noPagesYet');
     const photo = S.coverUrl
       ? '<span class="cover-photo"><img src="' + S.coverUrl + '" alt=""></span>'
@@ -350,7 +351,6 @@
     const photoSlot = small ? photo
       : '<label class="photo-slot" for="coverfile-home" data-no-act aria-label="' + esc(S.coverUrl ? t('changePhoto') : t('addCoverPhoto')) + '">' + photo + '</label>';
     const inner = spineHtml() + '<div class="frame" aria-hidden="true"></div>' + cornersHtml() +
-      '<span class="vol" dir="auto">' + esc(currentChapter() ? chTitle(currentChapter()) : t('notebookOne')) + '</span>' +
       '<span class="title">' + photoSlot +
       '<span class="t1">' + esc(t('journalOf')) + '</span><span class="t2' + (name.length > 7 ? ' long' : '') + '" data-cover-name>' + esc(name) + '</span></span>' +
       '<span class="meta">' + esc(meta) + '</span>';
@@ -605,7 +605,7 @@
       '<div class="top-actions">' + langPill() +
       '<button class="iconbtn raised" data-act="settings" aria-label="' + esc(t('settings')) + '">' + I.gear + (needsBackup() ? '<i class="badge-dot" aria-hidden="true"></i>' : '') + '</button></div></header>' +
       dateBar() +
-      '<div class="cover-area">' + coverHtml(false) + '<span class="cover-hint">' + I.spark + esc(t('tapBook')) + '</span>' +
+      '<div class="cover-area"><div class="cover-holder">' + coverHtml(false) + '<span class="tap-cue" aria-hidden="true"><i class="ripple"></i><i class="ripple r2"></i>' + I.hand + '</span></div>' +
       '<button class="soft-btn raised" data-act="contents">' + I.book + esc(t('openContents')) +
       (S.entries.length ? '<span class="muted">' + esc(SEP() + pagesText(S.entries.length)) + '</span>' : '') + '</button></div>' +
       hopeCard() +
