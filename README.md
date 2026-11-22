@@ -63,3 +63,7 @@ tests/                 tests for the backup format
 ## Fonts
 
 Body text uses [Parastoo](https://fonts.google.com/specimen/Parastoo) and [Vazirmatn](https://fonts.google.com/specimen/Vazirmatn) (Open Font License) from Google Fonts. The cover title uses **Afsaneh** by Hossein Taghizadeh, which is marked "All rights reserved"; replace it, or get the designer's permission, before using this app commercially.
+
+## License
+
+Copyright © 2026 Alireza Rajabi. All rights reserved. See [LICENSE](LICENSE). The code may not be copied, reused, or redistributed.
