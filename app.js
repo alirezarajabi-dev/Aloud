@@ -39,7 +39,7 @@
   const fmtDay = (iso) => fmtDate(iso, { day: 'numeric', month: 'long' });
   // A middle dot reads like the Persian zero (۰), so Persian text uses the Persian comma instead.
   const SEP = () => (lang() === 'fa' ? '، ' : ' · ');
-  const fmtDayTime = (iso) => fmtDay(iso) + SEP() + fmtDate(iso, { hour: '2-digit', minute: '2-digit', hour12: false });
+  const fmtDayTime = (iso) => fmtDay(iso) + SEP() + fmtDate(iso, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   // Weekday first in both languages (the Persian locale would put it last).
   const fmtLong = (iso) => fmtDate(iso, { weekday: 'long' }) + (lang() === 'fa' ? '، ' : ', ') + fmtDate(iso, { day: 'numeric', month: lang() === 'fa' ? 'long' : 'short', year: 'numeric' });
   function fmtClock(sec) {
@@ -76,6 +76,7 @@
     book: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 7h6"/></svg>',
     cal: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
     camera: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    x: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     leaf: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14z"/><path d="M5 19l7-7"/></svg>',
     note: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
     check: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
@@ -152,7 +153,8 @@
   // Calm music ("Sunrise", in music.js) made right here in the browser — no music file, no one else's song.
   // It plays only in your ears; the microphone records your voice alone (best with headphones).
   const Ambient = {
-    on: (() => { try { return localStorage.getItem('aloud-music') === '1'; } catch (e) { return false; } })(),
+    track: (() => { try { const v = localStorage.getItem('aloud-music'); return v === '1' || v === '2' ? Number(v) : 0; } catch (e) { return 0; } })(),
+    get on() { return this.track > 0; },
     ctx: null, song: null,
     prime() { // must run inside the tap, so iPhone allows sound
       try {
@@ -162,20 +164,28 @@
     },
     start() {
       this.prime(); if (!this.ctx || this.song || !window.AloudMusic) return;
-      this.song = window.AloudMusic.create(this.ctx, this.ctx.destination);
+      this.song = window.AloudMusic.create(this.ctx, this.ctx.destination, this.track);
       this.song.start();
     },
     stop() {
       if (!this.song) return;
       this.song.stop(1.5); this.song = null;
     },
-    toggle() {
-      this.on = !this.on;
-      try { localStorage.setItem('aloud-music', this.on ? '1' : '0'); } catch (e) { /* private mode */ }
-      const busy = Rec.active || !audio.paused;
-      if (this.on && busy) this.start(); else this.stop();
+    choose(n) {
+      this.prime();
+      this.track = n === 1 || n === 2 ? n : 0;
+      try { localStorage.setItem('aloud-music', String(this.track)); } catch (e) { /* private mode */ }
+      this.stop();
+      if (this.on && (Rec.active || !audio.paused)) this.start();
     }
   };
+
+  // Music: off, piece 1 or piece 2.
+  function musicChooser(hint) {
+    return '<div class="music-choose"><span class="mc-label">' + I.note + esc(t('calmMusic')) + '</span>' +
+      '<div class="seg three mc-seg">' + [0, 1, 2].map((n) => '<button data-act="music" data-n="' + n + '" aria-pressed="' + (Ambient.track === n) + '">' +
+        esc(n ? num(n) : t('off')) + '</button>').join('') + '</div><small class="muted">' + esc(hint) + '</small></div>';
+  }
 
   // Gratitude: a daily kind of page. Older pages simply titled "شکرگزاری" / "Gratitude" count too.
   const GRAT_WORDS = ['شکرگزاری', 'شکر گزاری', 'gratitude'];
@@ -426,7 +436,7 @@
     if (v === 'home') {
       S.clockTimer = setInterval(() => {
         const el = app.querySelector('[data-clock]');
-        if (el) el.textContent = fmtCal(new Date(), defaultCal(), { hour: '2-digit', minute: '2-digit', hour12: false });
+        if (el) el.textContent = fmtCal(new Date(), defaultCal(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
       }, 15000);
     }
   }
@@ -632,7 +642,7 @@
       // Weekday first, then the date, built by hand: the Persian locale would put the weekday last.
       '<span class="db-text"><b>' + esc(fmtCal(now, main, { weekday: lang() === 'fa' ? 'long' : 'short' }) + (lang() === 'fa' ? '، ' : ', ') + fmtCal(now, main, { day: 'numeric', month: lang() === 'fa' ? 'long' : 'short', year: 'numeric' })) + '</b>' +
       '<small dir="' + (latinGreg(second) ? 'ltr' : 'auto') + '">' + esc(fmtNative(now, second, { day: 'numeric', month: 'long', year: 'numeric' })) + '</small></span>' +
-      '<span class="db-side"><span class="db-time" data-clock>' + esc(fmtCal(now, main, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span>' +
+      '<span class="db-side"><span class="db-time" data-clock>' + esc(fmtCal(now, main, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })) + '</span>' +
       '<span class="tag">' + I.cal + esc(t('calendar')) + '</span></span></button>';
   }
 
@@ -757,10 +767,11 @@
     const list = sel.length ? '<div class="plist raised cal-list">' + sel.slice().reverse().map(pageRow).join('') + '</div>'
       : '<div class="empty small">' + esc(t('noPagesThisDay')) + '</div>';
     openSheet(
-      '<div class="cal-head"><button class="iconbtn flip-rtl" data-act="cal-prev" aria-label="' + esc(t('prevMonth')) + '">' + I.back + '</button>' +
+      // Like a wall calendar: the right arrow goes forward, the left arrow goes back, in both languages.
+      '<div class="cal-head" dir="ltr"><button class="iconbtn flip-always" data-act="cal-prev" aria-label="' + esc(t('prevMonth')) + '">' + I.back + '</button>' +
       '<div class="cal-title"><span class="cal-month" dir="' + (latinGreg(cal) ? 'ltr' : 'auto') + '">' + esc(fmtNative(start, cal, { month: 'long' }) + ' ' + fmtNative(start, cal, { year: 'numeric' })) + '</span>' +
       '<span class="cal-month2" dir="' + (latinGreg(otherCal(cal)) ? 'ltr' : 'rtl') + '">' + esc(monthSpan(start, days[days.length - 1], otherCal(cal))) + '</span></div>' +
-      '<button class="iconbtn flip-ltr" data-act="cal-next" aria-label="' + esc(t('nextMonth')) + '">' + I.back + '</button></div>' +
+      '<button class="iconbtn" data-act="cal-next" aria-label="' + esc(t('nextMonth')) + '">' + I.back + '</button></div>' +
       '<div class="seg"><button data-act="cal-mode" data-mode="persian" aria-pressed="' + (cal === 'persian') + '">' + esc(t('solar')) + '</button>' +
       '<button data-act="cal-mode" data-mode="gregory" aria-pressed="' + (cal === 'gregory') + '">' + esc(t('gregorian')) + '</button></div>' +
       '<div class="cal-grid' + (latinGreg(cal) ? ' latin' : '') + '" role="grid" dir="' + (latinGreg(cal) || lang() === 'en' ? 'ltr' : 'rtl') + '">' + wk.map((w) => '<span class="cal-wd">' + esc(w) + '</span>').join('') + cells + '</div>' +
@@ -772,7 +783,7 @@
 
   function bindCalendarSwipe() {
     const g = sheet() && sheet().querySelector('.cal-grid');
-    if (g) onSwipe(g, (d) => moveMonth(d));
+    if (g) onSwipe(g, (d) => moveMonth(d), true); // swipe left = next month, matching the arrows
   }
 
   function moveMonth(dir) {
@@ -792,7 +803,7 @@
       (selecting ? '<span class="selbox" aria-hidden="true">' + (picked ? I.check : '') + '</span>' : '') +
       '<span class="dtile"><b>' + esc(fmtCal(d, cal, { day: 'numeric' })) + '</b><small>' + esc(fmtCal(d, cal, { month: 'short' })) + '</small></span>' +
       '<span class="ptxt"><span dir="auto" class="pt' + (e.title ? '' : ' untitled') + '">' + (isGratitude(e) ? '<i class="grat-mark" aria-label="' + esc(t('gratitude')) + '">' + I.leaf + '</i>' : '') + esc(e.title || t('untitledTap')) + '</span>' +
-      '<span class="pm"><i class="mdot ' + moodClass(e.mood) + '" aria-hidden="true"></i>' + esc(fmtLen(e.durationSec) + SEP() + fmtDate(e.startedAt, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span></span></button>' +
+      '<span class="pm"><i class="mdot ' + moodClass(e.mood) + '" aria-hidden="true"></i>' + esc(fmtLen(e.durationSec) + SEP() + fmtDate(e.startedAt, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })) + '</span></span></button>' +
       (selecting ? '' :
         '<button class="pbtn edit raised" data-act="edit-entry" data-id="' + esc(e.id) + '" aria-label="' + esc(t('edit')) + '">' + I.pen + '</button>' +
         '<button class="pbtn play" data-act="play" data-id="' + esc(e.id) + '" aria-label="' + esc(t('play')) + '">' + I.play + '</button>') + '</div>';
@@ -890,8 +901,7 @@
       '<div class="timer" data-timer>' + fmtClock(0) + '</div>' +
       '<canvas class="wave" data-wave width="800" height="192" aria-hidden="true"></canvas>' +
       '<div class="note" data-marks>' + esc(t('keepOpen')) + '</div>' +
-      '<button class="music-btn' + (Ambient.on ? ' on' : '') + '" data-act="toggle-music" aria-pressed="' + Ambient.on + '">' + I.note +
-      '<span>' + esc(t('calmMusic')) + '</span><small>' + esc(t('withHeadphones')) + '</small></button>' +
+      musicChooser(t('withHeadphones')) +
       '<div class="grow"></div>' +
       '<div class="rec-controls">' +
       '<div class="c"><button class="rbtn mark" data-act="rec-mark" aria-label="' + esc(t('mark')) + '">' + I.mark + '</button>' + esc(t('mark')) + '</div>' +
@@ -1137,6 +1147,16 @@
     const already = !!sheetRoot.firstChild;
     if (already && sheetCleanup) { const fn = sheetCleanup; sheetCleanup = null; fn(); }
     sheetModal = !!(opts && opts.modal);
+    const open = sheet();
+    if (already && open) {
+      // A sheet that is already up only changes its contents: no closing, no sliding up again, no jump.
+      const keep = open.scrollTop;
+      open.innerHTML = '<div class="grab" aria-hidden="true"></div>' + html;
+      open.scrollTop = keep;
+      sheetCleanup = onClose || null;
+      const f0 = sheetRoot.querySelector('[autofocus]'); if (f0) f0.focus();
+      return;
+    }
     sheetRoot.innerHTML = '<div class="overlay" data-overlay><div class="sheet" role="dialog" aria-modal="true">' +
       '<div class="grab" aria-hidden="true"></div>' + html + '</div></div>';
     sheetCleanup = onClose || null;
@@ -1222,7 +1242,7 @@
   })();
 
   // ---- horizontal swipe helper (calendar months, player pages)
-  function onSwipe(el, fn) {
+  function onSwipe(el, fn, ltrAlways) {
     let x0 = null; let y0 = 0;
     el.addEventListener('touchstart', (ev) => { x0 = ev.touches[0].clientX; y0 = ev.touches[0].clientY; }, { passive: true });
     el.addEventListener('touchend', (ev) => {
@@ -1231,7 +1251,7 @@
       x0 = null;
       if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
         // "Forward" is to the left in English and to the right in Persian.
-        const forward = lang() === 'fa' ? dx > 0 : dx < 0;
+        const forward = lang() === 'fa' && !ltrAlways ? dx > 0 : dx < 0;
         fn(forward ? 1 : -1);
       }
     }, { passive: true });
@@ -1278,7 +1298,7 @@
     saving = rec;
     const ch = currentChapter();
     openSheet(
-      '<div class="sheet-head"><b>' + esc(t('savedCheck')) + '</b><span class="muted small">' + esc(fmtLen(rec.durationSec) || fmtClock(rec.durationSec)) + SEP() + esc(fmtDate(rec.startedAt, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span></div>' +
+      '<div class="sheet-head"><b>' + esc(t('savedCheck')) + '</b><span class="muted small">' + esc(fmtLen(rec.durationSec) || fmtClock(rec.durationSec)) + SEP() + esc(fmtDate(rec.startedAt, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })) + '</span></div>' +
       (rec.interrupted ? '<div class="note">' + esc(t('recInterrupted')) + '</div>' : '') +
       '<div class="field"><label for="ttl">' + esc(t('whatAbout')) + '</label>' +
       '<input id="ttl" class="big-input" type="text" maxlength="200" dir="auto" placeholder="' + esc(t('titleExample')) + '" autofocus enterkeyhint="done"></div>' +
@@ -1377,15 +1397,14 @@
     openSheet(
       '<div><span class="muted small">' + esc(fmtLong(entry.startedAt)) + '</span>' +
       '<h2 class="player-title" dir="auto">' + esc(entryTitle(entry)) + '</h2>' +
-      '<span class="muted small">' + esc(fmtLong(entry.startedAt) + SEP() + fmtDate(entry.startedAt, { hour: '2-digit', minute: '2-digit', hour12: false })) + '</span></div>' +
+      '<span class="muted small">' + esc(fmtLong(entry.startedAt) + SEP() + fmtDate(entry.startedAt, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })) + '</span></div>' +
       '<div><input class="seek" type="range" min="0" max="1000" value="0" step="1" data-seek aria-label="seek">' +
       '<div class="times"><span data-cur>' + fmtClock(0) + '</span><span data-dur>' + fmtClock(entry.durationSec) + '</span></div></div>' +
       '<div class="play-row" dir="ltr">' +
       '<button class="iconbtn" data-act="skip" data-sec="-15" aria-label="-15s">' + I.rew + '</button>' +
       '<button class="playbtn" data-act="toggle-play" data-playbtn aria-label="play">' + (audio.paused ? I.play : I.pause) + '</button>' +
       '<button class="iconbtn" data-act="skip" data-sec="15" aria-label="+15s">' + I.fwd + '</button></div>' +
-      '<button class="music-btn' + (Ambient.on ? ' on' : '') + '" data-act="toggle-music" aria-pressed="' + Ambient.on + '">' + I.note +
-      '<span>' + esc(t('musicUnder')) + '</span></button>' +
+      musicChooser(t('musicNotInFile')) +
       '<div class="field"><span class="label">' + esc(t('speed')) + '</span><div class="chips">' +
       [1, 1.25, 1.5, 2].map((r) => '<button class="chip" data-act="rate" data-rate="' + r + '" aria-pressed="' + (audio.playbackRate === r) + '">' + esc(num(r)) + '×</button>').join('') + '</div></div>' +
       (marks ? '<div class="field"><span class="label">' + esc(t('bookmarks')) + '</span><div class="chips">' + marks + '</div></div>' : '') +
@@ -1556,13 +1575,13 @@
   function openSettings() {
     const th = S.settings.theme || 'light';
     openSheet(
-      '<div class="sheet-head"><b>' + esc(t('settings')) + '</b><button class="small-btn raised" data-act="save-settings">' + esc(t('done')) + '</button></div>' +
+      '<div class="sheet-head"><b>' + esc(t('settings')) + '</b><button class="iconbtn raised close-x" data-act="save-settings" aria-label="' + esc(t('close')) + '">' + I.x + '</button></div>' +
       '<section class="group"><h3>' + esc(t('groupMe')) + '</h3>' +
       '<div class="photo-row"><label class="cover-photo preview" for="coverfile">' + (S.coverUrl ? '<img src="' + S.coverUrl + '" alt="">' : '<span class="ph">' + I.camera + '</span>') + '</label>' +
       '<div class="photo-btns"><label class="small-btn raised" for="coverfile">' + I.camera + esc(S.coverUrl ? t('changePhoto') : t('choosePhoto')) + '</label>' +
       (S.coverUrl ? '<button class="small-btn raised" data-act="remove-photo">' + esc(t('removePhoto')) + '</button>' : '') + '</div></div>' +
       '<input id="coverfile" class="sr-only" type="file" accept="image/*" data-cover-photo>' +
-      '<div class="field"><label for="setname">' + esc(t('whose')) + '</label>' +
+      '<div class="field"><label for="setname">' + esc(t('nameFaLabel')) + '</label>' +
       '<input id="setname" type="text" maxlength="60" dir="auto" value="' + esc(S.settings.name || '') + '"></div>' +
       '<div class="field"><label for="setnameen">' + esc(t('nameEnLabel')) + '</label>' +
       '<input id="setnameen" type="text" maxlength="60" dir="ltr" autocomplete="off" placeholder="Alireza" value="' + esc(S.settings.nameEn || '') + '"></div></section>' +
@@ -1817,7 +1836,10 @@
     'cal-day': (el) => { S.calSelected = el.dataset.key; openCalendar(true); },
     'record': () => { if (!audio.paused) stopAudio(); if (Ambient.on) Ambient.prime(); Rec.start('page').then(() => { if (Ambient.on && Rec.active) Ambient.start(); }); },
     'record-gratitude': () => { if (!audio.paused) stopAudio(); if (Ambient.on) Ambient.prime(); Rec.start('gratitude').then(() => { if (Ambient.on && Rec.active) Ambient.start(); }); },
-    'toggle-music': (el) => { Ambient.toggle(); el.classList.toggle('on', Ambient.on); el.setAttribute('aria-pressed', Ambient.on); },
+    'music': (el) => {
+      Ambient.choose(Number(el.dataset.n));
+      el.parentNode.querySelectorAll('[data-act="music"]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.n) === Ambient.track)));
+    },
     'filter': (el) => { S.filter = el.dataset.f === 'gratitude' ? 'gratitude' : ''; render(); },
     'play-month': (el) => {
       const ids = el.dataset.ids.split(',').filter(Boolean);
