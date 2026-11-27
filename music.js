@@ -6,8 +6,8 @@
 (function () {
   'use strict';
   const PIECES = {
-    1: { bpm: 76, level: 0.36 },
-    2: { bpm: 62, level: 0.34 }
+    1: { bpm: 76, level: 0.36, pad: 0.035 },
+    2: { bpm: 62, level: 0.37, pad: 0.07 }  // harp and flute are sparser: a fuller pad keeps it continuous
   };
   // D major, I–V–vi–IV with a lift to ii now and then (MIDI note numbers).
   const CHORDS = [
@@ -73,7 +73,7 @@
       send(g);
     }
     function pad(t, tones, dur) {
-      const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.035, t + 1.2); g.gain.setValueAtTime(0.035, t + dur - 0.8); g.gain.linearRampToValueAtTime(0, t + dur + 0.6);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(P.pad, t + 1.2); g.gain.setValueAtTime(P.pad, t + dur - 0.8); g.gain.linearRampToValueAtTime(0, t + dur + 0.6);
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400; lp.connect(g);
       tones.slice(0, 3).forEach((m) => { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = hz(m - 12); o.detune.value = (Math.random() - 0.5) * 10; o.connect(lp); o.start(t); o.stop(t + dur + 0.7); });
       send(g);
@@ -133,11 +133,18 @@
       });
     }
 
-    let timer = 0; let next = 0; let idx = 0;
+    let timer = 0; let next = 0; let idx = 0; let vol = 1;
     return {
-      start() {
+      // 0…1 from the volume bar; the piece's own level keeps both pieces equally loud.
+      setVolume(v) {
+        vol = Math.max(0, Math.min(1, v));
         const now = ctx.currentTime;
-        master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(master.gain.value, now); master.gain.linearRampToValueAtTime(P.level, now + 2.5);
+        master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(master.gain.value, now); master.gain.linearRampToValueAtTime(P.level * vol, now + 0.15);
+      },
+      start(v) {
+        if (v != null) vol = v;
+        const now = ctx.currentTime;
+        master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(master.gain.value, now); master.gain.linearRampToValueAtTime(P.level * vol, now + 2.5);
         next = now + 0.1; idx = 0;
         const play = which === 2 ? bar2 : bar;
         const tick = () => { while (next < ctx.currentTime + 1.2) { play(next, idx++); next += EIGHTH * 8; } };

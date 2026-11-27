@@ -573,3 +573,7 @@ html[dir='ltr'] input.when::-webkit-date-and-time-value { text-align: left; }
 @keyframes mark-ring { 0% { opacity: 0.9; transform: scale(1); } 100% { opacity: 0; transform: scale(1.9); } }
 .note.flash { animation: note-flash 1s ease-out; }
 @keyframes note-flash { 0% { color: var(--gilt); transform: scale(1.06); } 100% { transform: none; } }
+
+.mc-vol { display: flex; align-items: center; gap: 8px; width: 240px; color: var(--muted); }
+.mc-vol svg { width: 18px; height: 18px; flex: none; }
+.mc-vol input[type='range'] { flex: 1; accent-color: var(--gilt); height: 28px; }

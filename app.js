@@ -77,6 +77,8 @@
     cal: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
     camera: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     x: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    speakerLow: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9v6h4l5 4V5L9 9z"/></svg>',
+    speakerHigh: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
     leaf: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14z"/><path d="M5 19l7-7"/></svg>',
     note: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
     check: '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
@@ -155,6 +157,13 @@
   const Ambient = {
     track: (() => { try { const v = localStorage.getItem('aloud-music'); return v === '1' || v === '2' ? Number(v) : 0; } catch (e) { return 0; } })(),
     get on() { return this.track > 0; },
+    // Volume bar, 0–100. Starts gentle: just a feeling underneath.
+    vol: (() => { try { const v = Number(localStorage.getItem('aloud-music-vol')); return Number.isFinite(v) && localStorage.getItem('aloud-music-vol') !== null ? v : 35; } catch (e) { return 35; } })(),
+    setVol(v) {
+      this.vol = Math.max(0, Math.min(100, Math.round(v)));
+      try { localStorage.setItem('aloud-music-vol', String(this.vol)); } catch (e) { /* private mode */ }
+      if (this.song) this.song.setVolume(this.vol / 100);
+    },
     ctx: null, song: null,
     prime() { // must run inside the tap, so iPhone allows sound
       try {
@@ -165,7 +174,7 @@
     start() {
       this.prime(); if (!this.ctx || this.song || !window.AloudMusic) return;
       this.song = window.AloudMusic.create(this.ctx, this.ctx.destination, this.track);
-      this.song.start();
+      this.song.start(this.vol / 100);
     },
     stop(fade) {
       if (!this.song) return;
@@ -191,7 +200,10 @@
   function musicChooser(hint) {
     return '<div class="music-choose"><span class="mc-label">' + I.note + esc(t('calmMusic')) + '</span>' +
       '<div class="seg three mc-seg">' + [0, 1, 2].map((n) => '<button data-act="music" data-n="' + n + '" aria-pressed="' + (Ambient.track === n) + '">' +
-        esc(n ? num(n) : t('off')) + '</button>').join('') + '</div><small class="muted">' + esc(hint) + '</small></div>';
+        esc(n ? num(n) : t('off')) + '</button>').join('') + '</div>' +
+      '<label class="mc-vol"><span class="sr-only">' + esc(t('musicVolume')) + '</span>' + I.speakerLow +
+      '<input type="range" min="0" max="100" step="1" value="' + Ambient.vol + '" data-music-vol aria-label="' + esc(t('musicVolume')) + '">' + I.speakerHigh + '</label>' +
+      '<small class="muted">' + esc(hint) + '</small></div>';
   }
 
   // Gratitude: a daily kind of page. Older pages simply titled "شکرگزاری" / "Gratitude" count too.
@@ -940,21 +952,14 @@
         this.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: false } });
       } catch (e) {
         if (this.ctx) safe(this.ctx.close());
-      this.ctx = null; this.chainOut = null; this.ctx = null;
+        this.ctx = null; this.chainOut = null;
         toast(t('micDenied'));
         return;
       }
       this.recStream = await this.cleanVoice();
-      const want = this.pickMime();
-      try {
-        // Speech needs little data: mono AAC at 48 kbps (~21 MB an hour) or Opus at 32 kbps (~14 MB an hour)
-        // sounds clear while keeping files small.
-        const bits = /opus|webm|ogg/.test(want) ? 32000 : 48000;
-        this.mr = want ? new MediaRecorder(this.recStream, { mimeType: want, audioBitsPerSecond: bits }) : new MediaRecorder(this.recStream, { audioBitsPerSecond: bits });
-      } catch (e) {
-        this.mr = new MediaRecorder(this.recStream);
-      }
-      this.mime = (this.mr.mimeType || want || 'audio/webm').split(';')[0];
+      this.fellBack = false;
+      this.makeRecorder(this.recStream);
+      this.mime = (this.mr.mimeType || this.pickMime() || 'audio/webm').split(';')[0];
       this.chunks = []; this.seq = 0; this.bookmarks = []; this.elapsedBefore = 0; this.paused = false; this.interrupted = false;
       this.sessionId = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
       this.startedAt = new Date().toISOString();
@@ -962,6 +967,45 @@
       const ch = currentChapter();
       await safe(DB.put('sessions', { id: this.sessionId, mime: this.mime, startedAt: this.startedAt, bookmarks: [], elapsed: 0, chapterId: ch ? ch.id : null }));
 
+      this.wire();
+      // If the cleaned-up sound fails to start (iPhone can do this on the very first press),
+      // carry on at once with the microphone as it is — no leaving the screen, no second press.
+      try { this.mr.start(5000); } catch (e) { this.fallback(); }
+      this.segStart = Date.now();
+      this.setupMeter();
+      this.lockScreen();
+      S.view = 'recorder';
+      render();
+    },
+
+    makeRecorder(stream) {
+      const want = this.pickMime();
+      try {
+        // Speech needs little data: mono AAC at 48 kbps (~21 MB an hour) or Opus at 32 kbps (~14 MB an hour)
+        // sounds clear while keeping files small.
+        const bits = /opus|webm|ogg/.test(want) ? 32000 : 48000;
+        this.mr = want ? new MediaRecorder(stream, { mimeType: want, audioBitsPerSecond: bits }) : new MediaRecorder(stream, { audioBitsPerSecond: bits });
+      } catch (e) {
+        this.mr = new MediaRecorder(stream);
+      }
+    },
+
+    fallback() {
+      if (this.fellBack || this.recStream === this.stream) { this.interrupted = true; this.stop(); return; }
+      this.fellBack = true;
+      const old = this.mr;
+      if (old) { old.ondataavailable = null; old.onstop = null; old.onerror = null; try { if (old.state !== 'inactive') old.stop(); } catch (e) { /* already stopped */ } }
+      this.recStream = this.stream;
+      this.makeRecorder(this.stream);
+      this.mime = (this.mr.mimeType || this.mime).split(';')[0];
+      this.chunks = []; this.seq = 0;
+      safe(DB.dropSession(this.sessionId).then(() => DB.put('sessions', { id: this.sessionId, mime: this.mime, startedAt: this.startedAt, bookmarks: this.bookmarks, elapsed: 0, chapterId: null })));
+      this.wire();
+      try { this.mr.start(5000); } catch (e) { this.interrupted = true; this.active && this.finish(); }
+    },
+
+    wire() {
+      const ch = currentChapter();
       this.mr.ondataavailable = (ev) => {
         if (!ev.data || !ev.data.size) return;
         this.chunks.push(ev.data);
@@ -970,15 +1014,9 @@
         safe(DB.put('sessions', { id: this.sessionId, mime: this.mime, startedAt: this.startedAt, bookmarks: this.bookmarks, elapsed: Math.round(this.elapsed() / 1000), chapterId: ch ? ch.id : null }));
       };
       this.mr.onstop = () => this.finish();
-      this.mr.onerror = () => { this.interrupted = true; this.stop(); };
+      // An error before any sound was saved means the cleaned path failed: switch, don't quit.
+      this.mr.onerror = () => { if (!this.chunks.length && !this.fellBack) this.fallback(); else { this.interrupted = true; this.stop(); } };
       this.stream.getAudioTracks().forEach((tr) => { tr.onended = () => { if (this.active) { this.interrupted = true; this.stop(); } }; });
-
-      this.mr.start(5000);
-      this.segStart = Date.now();
-      this.setupMeter();
-      this.lockScreen();
-      S.view = 'recorder';
-      render();
     },
 
     bindView() {
@@ -2034,6 +2072,7 @@
   });
 
   document.addEventListener('input', (ev) => {
+    if (ev.target.matches && ev.target.matches('[data-music-vol]')) { Ambient.setVol(Number(ev.target.value)); return; }
     if (ev.target.id === 'owner') {
       const n = app.querySelector('[data-cover-name]');
       if (n) n.textContent = ev.target.value || t('yourName');
