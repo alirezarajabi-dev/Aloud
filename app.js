@@ -167,16 +167,23 @@
       this.song = window.AloudMusic.create(this.ctx, this.ctx.destination, this.track);
       this.song.start();
     },
-    stop() {
+    stop(fade) {
       if (!this.song) return;
-      this.song.stop(1.5); this.song = null;
+      this.song.stop(fade == null ? 0.5 : fade); this.song = null;
+    },
+    // After a recording: silence at once and switch the music engine off entirely, so nothing
+    // keeps sounding when iPhone moves the sound back to the speaker.
+    halt() {
+      this.stop(0.25);
+      const c = this.ctx; this.ctx = null;
+      if (c) setTimeout(() => { try { c.close(); } catch (e) { /* closed */ } }, 350);
     },
     choose(n) {
       this.prime();
       this.track = n === 1 || n === 2 ? n : 0;
       try { localStorage.setItem('aloud-music', String(this.track)); } catch (e) { /* private mode */ }
       this.stop();
-      if (this.on && (Rec.active || !audio.paused)) this.start();
+      if (this.on && ((Rec.active && !Rec.paused) || !audio.paused)) this.start();
     }
   };
 
@@ -1077,8 +1084,10 @@
       if (!this.mr || !this.active) return;
       if (this.paused) {
         this.mr.resume(); this.paused = false; this.segStart = Date.now();
+        if (Ambient.on) Ambient.start();   // music carries on with the recording
       } else {
         this.mr.pause(); this.elapsedBefore = this.elapsed(); this.paused = true;
+        Ambient.stop(0.4);                 // and rests while it is paused
       }
       const btn = app.querySelector('[data-pause]');
       const lbl = app.querySelector('[data-pause-label]');
@@ -1091,6 +1100,7 @@
     },
 
     stop() {
+      Ambient.halt(); // the music stops the moment you press Stop, before the microphone closes
       if (!this.mr || this.mr.state === 'inactive') { if (this.active) this.finish(); return; }
       this.elapsedBefore = this.elapsed(); this.paused = true;
       try { this.mr.stop(); } catch (e) { this.finish(); }
@@ -1112,7 +1122,7 @@
         durationSec: Math.round(this.elapsedBefore / 1000), bookmarks: this.bookmarks.slice(), interrupted: this.interrupted
       };
       this.chunks = [];
-      Ambient.stop();
+      Ambient.halt();
       S.view = 'home';
       render();
       if (!blob.size) { safe(DB.dropSession(rec.sessionId)); this.sessionId = null; toast(t('recInterrupted')); return; }
@@ -1371,6 +1381,7 @@
 
   // ----- player
   let playerEntry = null;
+  let switchingPage = false;
   function openPlayer(entry, fromQueue) {
     if (!fromQueue) S.queue = [];
     if (Ambient.on) Ambient.prime();
@@ -1394,6 +1405,7 @@
     }
     const marks = (entry.bookmarks || []).map((s) => '<button class="chip" data-act="seek-to" data-sec="' + s + '">' + I.markFill + esc(fmtClock(s)) + '</button>').join('');
     const ch = S.chapters.find((c) => c.id === entry.chapterId);
+    switchingPage = !!playerEntry;
     openSheet(
       '<div><span class="muted small">' + esc(fmtLong(entry.startedAt)) + '</span>' +
       '<h2 class="player-title" dir="auto">' + esc(entryTitle(entry)) + '</h2>' +
@@ -1412,17 +1424,23 @@
       '<button class="btn btn-ghost" data-act="edit-entry" data-id="' + esc(entry.id) + '">' + I.pen + esc(t('edit')) + '</button></div>' +
       '<div class="btn-row">' +
       '<button class="btn btn-ghost" data-act="close-sheet">' + esc(t('close')) + '</button></div>',
-      () => { playerEntry = null; }
+      // Closing the player (button, pull down or Back) stops the sound: closed means closed.
+      () => { playerEntry = null; if (!switchingPage) stopAudio(); }
     );
+    switchingPage = false;
     syncPlayer();
     if (audio.src && (fromQueue || audio.paused)) safe(audio.play());
     const sh = sheet();
-    if (sh) onSwipe(sh, (d) => {
-      const list = S.entries;
-      const i = list.findIndex((x) => x.id === entry.id);
-      const next = list[i + d];
-      if (next) openPlayer(next);
-    });
+    if (sh && !sh.dataset.swipe) {
+      sh.dataset.swipe = '1'; // bound once; the sheet now stays and only its contents change
+      onSwipe(sh, (d) => {
+        if (!playerEntry) return;
+        const list = S.entries;
+        const i = list.findIndex((x) => x.id === playerEntry.id);
+        const next = list[i + d];
+        if (next) openPlayer(next);
+      });
+    }
   }
 
   function syncPlayer() {
@@ -1441,6 +1459,7 @@
   ['timeupdate', 'play', 'pause', 'loadedmetadata'].forEach((ev) => audio.addEventListener(ev, syncPlayer));
   // Calm music under a page while it plays (the file itself stays your voice only).
   audio.addEventListener('play', () => { if (Ambient.on && !Rec.active) Ambient.start(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && !Rec.active && audio.paused) Ambient.stop(0.2); });
   audio.addEventListener('pause', () => { if (!Rec.active && !(audio.ended && S.queue.length)) Ambient.stop(); });
   ['play', 'pause', 'ended', 'emptied'].forEach((ev) => audio.addEventListener(ev, renderMini));
 
@@ -1460,6 +1479,7 @@
 
   function stopAudio() {
     audio.pause();
+    if (!Rec.active) Ambient.stop(0.3);
     audio.removeAttribute('src');
     audio.load();
     if (audio.dataset.url) { URL.revokeObjectURL(audio.dataset.url); audio.dataset.url = ''; }
@@ -2160,7 +2180,7 @@
   }
 
   // Tiny hooks for automated tests; harmless in normal use.
-  window.__aloud = { S, t, fmtClock, guessDate, hashId, DB, Rec };
+  window.__aloud = { S, t, fmtClock, guessDate, hashId, DB, Rec, Ambient };
 
   boot();
 })();

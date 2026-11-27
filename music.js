@@ -147,7 +147,8 @@
         clearInterval(timer);
         const now = ctx.currentTime; const f = fade == null ? 1.5 : fade;
         master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(master.gain.value, now); master.gain.linearRampToValueAtTime(0, now + f);
-        setTimeout(() => { try { master.disconnect(); } catch (e) { /* done */ } }, f * 1000 + 3200);
+        // Cut cleanly once faded: notes already queued and the reverb tail go with it.
+        setTimeout(() => { try { master.disconnect(); } catch (e) { /* done */ } }, f * 1000 + 60);
       },
       // For an offline preview: schedule a fixed length.
       render(seconds) {
