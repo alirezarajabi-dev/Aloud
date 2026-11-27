@@ -1078,6 +1078,16 @@
       const el = app.querySelector('[data-marks]');
       if (el) el.textContent = t('marked', { n: num(this.bookmarks.length) }) + SEP() + this.bookmarks.map((s) => fmtClock(s)).join('، ');
       if (navigator.vibrate) navigator.vibrate(30);
+      // Show it plainly: the button lights up gold with a ring, then rests again for the next moment,
+      // and a small number on it counts the moments marked so far.
+      const btn = app.querySelector('[data-act="rec-mark"]');
+      if (btn) {
+        btn.classList.remove('hit'); void btn.offsetWidth; btn.classList.add('hit');
+        btn.innerHTML = I.markFill + '<b class="mark-count">' + esc(num(this.bookmarks.length)) + '</b><i class="mark-ring" aria-hidden="true"></i>';
+        clearTimeout(this.markTimer);
+        this.markTimer = setTimeout(() => { btn.classList.remove('hit'); }, 900);
+      }
+      if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
     },
 
     togglePause() {

@@ -561,3 +561,15 @@ html[dir='ltr'] input.when::-webkit-date-and-time-value { text-align: left; }
 .mc-seg button { height: 38px; font-size: 14px; }
 .music-choose small { font-size: 11.5px; }
 .close-x svg { width: 20px; height: 20px; }
+
+/* Marking an important moment: a gold flash, a ring and a running count. */
+.rbtn.mark { position: relative; overflow: visible; transition: background 0.25s, color 0.25s, transform 0.15s; }
+.rbtn.mark.hit { background: var(--gold); color: var(--navy, #0C1B2E); transform: scale(1.12); }
+.mark-count { position: absolute; top: -4px; inset-inline-end: -4px; min-width: 22px; height: 22px; padding: 0 5px; box-sizing: border-box; border-radius: 11px;
+  background: var(--gold); color: #0C1B2E; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--bg); }
+.rbtn.mark.hit .mark-count { background: var(--green); color: #fff; }
+.mark-ring { position: absolute; inset: -2px; border-radius: 50%; border: 3px solid var(--gold); opacity: 0; pointer-events: none; }
+.rbtn.mark.hit .mark-ring { animation: mark-ring 0.8s ease-out; }
+@keyframes mark-ring { 0% { opacity: 0.9; transform: scale(1); } 100% { opacity: 0; transform: scale(1.9); } }
+.note.flash { animation: note-flash 1s ease-out; }
+@keyframes note-flash { 0% { color: var(--gilt); transform: scale(1.06); } 100% { transform: none; } }
